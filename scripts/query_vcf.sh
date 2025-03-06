@@ -1,11 +1,11 @@
 ##THIS GETS ABX PROFILE AND LINEAGE FOR A VCF
 ##USAGE
 #sh query_vcf.sh  $PATH_TO_VCF
-if [ ! -f ~/.sparsely ];then
+if [ ! -f ~/.sfx ];then
 echo "need sparsely file with credentials"
 fi 
 
-while read line; do export $line; done <~/.sparsely
+while read line; do export $line; done <~/.sfx
 user=$(whoami)
 
 if [ ! $1 ] ; then 

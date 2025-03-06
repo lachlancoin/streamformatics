@@ -2,7 +2,7 @@
 #sh query.sh  example.json
 
 
-while read line; do export $line; done <~/.sparsely
+while read line; do export $line; done <~/.sfx
 user=$(whoami)
 
 WWW="fspls/data/train/Coin/LCAH"

@@ -1,7 +1,7 @@
 ##USAGE
 #sh upload_pheno.sh  $PATH_TO_CSV
 
-while read line; do export $line; done </.sparsely
+while read line; do export $line; done </.sfx
 user=$(whoami)
 
 if [ ! $1 ] ; then 

@@ -3,7 +3,7 @@
 ##sh  test.sh
 
 #set env vars
-while read line; do export $line; done <~/.sparsely
+while read line; do export $line; done <~/.sfx
 user=$(whoami)
 export WWW="admin/echo?msg=testing"
 

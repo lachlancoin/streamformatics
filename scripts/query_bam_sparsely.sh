@@ -1,6 +1,6 @@
 #conda activate japsa
 
-if [ ! -f ~/.sparsely ];then
+if [ ! -f ~/.sfx ];then
 	echo "need sparsely file with credentials"
 fi 
 
@@ -16,7 +16,7 @@ if [ !$2 ]; then
 split=4000
 fi
 
-while read line; do export $line; done <~/.sparsely
+while read line; do export $line; done <~/.sfx
 user=$(whoami)
 
 

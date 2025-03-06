@@ -4,7 +4,7 @@
 ##sh register.sh
 #THIS REGISTERS THE USER
 #set env vars
-while read line; do export $line; done < ~/.sparsely
+while read line; do export $line; done < ~/.sfx
 user=$(whoami)
 
 export WWW="admin/register/Coin"

@@ -47,14 +47,14 @@ print(eval1)
 
 vars[[2]] = vars[[1]][1]
 names(vars) = lapply(vars, function(v) paste(names(v), collapse="."))
-angles=.GET("fspls/data/angles",org="Coin",project="pdig", outp="json",  query= list(flags = toJSON(flags), phens =toJSON(phens), vars = toJSON(vars)))
+angles=.GET("fspls/data/angles",org="Coin",project="golub", outp="json",  query= list(flags = toJSON(flags), phens =toJSON(phens), vars = toJSON(vars)))
 print(angles)
 
 #vars[[2]] = vars[[1]][length(vars[[1]])]
 #vars[[3]] = vars[[1]][length(vars[[1]])-1]
 #vars[[4]] = vars[[1]][1:(length(vars[[1]])-1)]
 names(vars) = lapply(vars, function(v) paste(names(v), collapse="."))
-pvalues = .GET("fspls/data/pvalue",org="Coin",project="pdig", outp="json",  query= list(flags = toJSON(flags), phens =toJSON(phens), vars = toJSON(vars)))
+pvalues = .GET("fspls/data/pvalue",org="Coin",project="golub", outp="json",  query= list(flags = toJSON(flags), phens =toJSON(phens), vars = toJSON(vars)))
 print(pvalues)
 
 

@@ -25,10 +25,10 @@ if(opts$URL=="https://api.localhost") httr::set_config(httr::config(ssl_verifype
 ##STREAM A VCF
 
 
-.POST("dist/stream",org="Coin",project="TB1",db="mtb1" ,query=list(format="vcf"),
+.POST("dist/stream",org="Coin",project="TB2",db="mtb1" ,query=list(format="vcf"),
       files=list("~/Data/sparsely/ERR10225529.targets.vcf.gz"))
 
 
-.GET("dist/samples", org="Coin", project="TB1",db="mtb1",outp="json")
-types=.GET("dist/types", org="Coin", project="TB1",db="mtb1",outp="json")
-.GET("dist/variables", org="Coin", project="TB1",db="mtb1",query = list(type=types[[1]]))
+.GET("dist/samples", org="Coin", project="TB2",db="mtb1",outp="json")
+types=.GET("dist/types", org="Coin", project="TB2",db="mtb1",outp="json")
+.GET("dist/variables", org="Coin", project="TB2",db="mtb1",query = list(type=types[[1]]))

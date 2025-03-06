@@ -1,4 +1,5 @@
 ### SCRIPT FOR TB QUERYING WHO CATALOG
+##DATASETS COME FROM https://github.com/dn-ra/FSPLS-publication-repo
 
 .libPaths("~/R/x86_64-pc-linux-gnu-library/4.1/")
 library(curl);library(httr); library(jsonlite);library(readr);library(ggplot2)

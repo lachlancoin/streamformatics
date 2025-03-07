@@ -1,5 +1,4 @@
 ### SCRIPT FOR TB QUERYING WHO CATALOG
-##DATASETS COME FROM https://github.com/dn-ra/FSPLS-publication-repo
 
 .libPaths("~/R/x86_64-pc-linux-gnu-library/4.1/")
 library(curl);library(httr); library(jsonlite);library(readr);library(ggplot2)
@@ -15,16 +14,19 @@ if(opts$URL=="https://api.localhost") httr::set_config(httr::config(ssl_verifype
 
 ##REGISTER USER to a specific org
 .GET("admin/register",org="Coin",query = list(key=opts$API_KEY))
-
-
-
 .GET("admin/make", org="Coin", project="golub",db="golub_data")
 
-inputs = as.list(grep(".Rds",dir("~/github/FSPLS-publication-repo/input",rec=T,full=T),v=T))
-names(inputs)=lapply(inputs, function(str)rev(strsplit(str,"/")[[1]])[2])
+
+#DOWNLOAD RDS FILE FROM GITHUB
+url="https://github.com/dn-ra/FSPLS-publication-repo/blob/master/input/golub_data/golub.prepd.Rds"
+download_file = "./golub_prepd.Rds"
+GET(url, write_disk(download_file, overwrite=TRUE))
+
+#inputs = as.list(grep(".Rds",dir("~/github/FSPLS-publication-repo/input",rec=T,full=T),v=T))
+#names(inputs)=lapply(inputs, function(str)rev(strsplit(str,"/")[[1]])[2])
 db="golub_data"
 #.GET("admin/delete", org="Coin", project="golub", db="golub",query=list(delete=T))
-
+files = list("golub_data" = download_file)
 .POST("dist/upload_rds", org="Coin", project="golub",db=db,files = inputs[db], body = list(flags=toJSON(list(force=T))),outp="json")
 
 

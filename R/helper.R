@@ -31,7 +31,7 @@ setOptions<-function(config){
   return(a1)
 }
 
-.POST<-function(endpoint, org=NULL, project=NULL, db=NULL, query=list(),body = list(), files=NULL, outp="json",encode="multipart"){
+.POST<-function(endpoint, org=NULL, project=NULL, db=NULL, query=list(),body = list(), files=NULL, outp="json",encode="multipart",verbose=T){
   auth = authenticate(getOption("USER"), getOption("PASS"));baseurl = getOption("URL")
   url=paste(baseurl,endpoint,sep="/")
   if(!is.null(org)) url = paste(url, org,sep="/")
@@ -49,9 +49,9 @@ setOptions<-function(config){
     }
   }
   if(length(query)>0){
-    a=POST(url,body = body , query=query,auth,encode=encode) #,encode="multipart")
+    a=POST(url,body = body , query=query,auth,encode=encode,verbose=verbose) #,encode="multipart")
   }else{
-    a = POST(url, body = body, query = query, auth, encode=encode)
+    a = POST(url, body = body, query = query, auth, encode=encode,verbose=verbose)
   }
   a1=rawToChar(a$content)
   if(outp=="json") return(fromJSON(a1))

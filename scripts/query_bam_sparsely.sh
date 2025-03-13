@@ -27,15 +27,15 @@ user=$(whoami)
 
 
 
-url2="${URL}/sparsely/clear/Coin/TB"
-url3="${URL}/sparsely/bam/Coin/TB"
-url4="${URL}/sparsely/resistance/Coin/TB"
+url2="${URL}/sparsely/clear/Coin/TB?sampleID=${bf}"
+url3="${URL}/sparsely/bam/Coin/TB?sampleID=${bf}"
+url4="${URL}/sparsely/resistance/Coin/TB?sampleID=${bf}"
 
 
 
 #flags1='{\"sampleID\":\"'$bf'\"}'
-flags2='{"sampleID":"'$bf'"}'
-flags1=$(echo $flags2 | sed 's/"/\\"/g')
+#flags2='{"sampleID":"'$bf'"}'
+#flags1=$(echo $flags2 | sed 's/"/\\"/g')
 
 #>&2 echo $flags | jq
 >&2 echo "simple command without splitting not executed " 
@@ -45,20 +45,20 @@ cmd="curl -X 'POST'  -k  --user \"${user}:${PASS}\"  -F flags='${flags}' ${url2}
 
 ##first clear optional
 url2="${URL}/sparsely/clear/Coin/TB"
-cmd="curl -X 'POST' -k  --user \"${user}:${PASS}\" -F flags='${flags2}'  $url2"
+cmd="curl -X 'POST' -k  --user \"${user}:${PASS}\"   $url2"
 >&2 echo $cmd
-curl -X 'POST' -k  --user "${user}:${PASS}" -F flags="${flags2}"  $url2
+curl -X 'POST' -k  --user "${user}:${PASS}"   $url2
 
 
 #curl -k  --user "${user}:${PASS}" -F flags="${flags}"  $url2  | samtools view $1  -L -  | split - prefix -l ${split} --filter='cat header - | samtools view -b - > $FILE.bam'
 cmd="samtools view -H $bf > header; samtools view $bf | split - prefix -l ${split} --filter=\"cat header - | samtools view -b -  | curl -X 'POST' -k  --user \"${user}:${PASS}\"  -F flags='${flags1}' -F upload=@- ${url3}\""
 >&2 echo $cmd
-samtools view -H $bf > header;  samtools view $bf  | split - prefix -l ${split} --filter="cat header - | samtools view -b -  | curl -X 'POST' -k  --user \"${user}:${PASS}\"  -F flags=${flags1} -F upload=@- ${url3}"
+samtools view -H $bf > header;  samtools view $bf  | split - prefix -l ${split} --filter="cat header - | samtools view -b -  | curl -X 'POST' -k  --user \"${user}:${PASS}\"   -F upload=@- ${url3}"
 
 
-cmd="curl -X 'POST' -k  --user \"${user}:${PASS}\" -F flags='${flags2}'  $url4"
+cmd="curl -X 'GET' -k  --user \"${user}:${PASS}\" -F flags='${flags2}'  $url4"
 echo $cmd
 
-curl -X 'POST' -k  --user "${user}:${PASS}" -F flags="${flags2}"  $url4
+curl -X 'GET' -k  --user "${user}:${PASS}"  $url4
 
 

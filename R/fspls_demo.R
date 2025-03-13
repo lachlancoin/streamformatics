@@ -30,34 +30,32 @@ files = list("golub_data" = download_file)
 .POST("dist/upload_rds", org="Coin", project="golub",db=db,files = inputs[db], body = list(flags=toJSON(list(force=T))),outp="json")
 
 
-
+flags = list(bigmatrix=FALSE,reload=T)
+.POST("fspls/data/load",org="Coin",project="golub",outp="json", body = list(flags=toJSON(flags)))
 
 
 phens=.GET("fspls/data/pheno", org="Coin", project="golub",outp="json")
 
-flags = list(return="vars",pthresh = 5e-2, topn=10,beam=1,train="golub_data",test="golub_data") ## return can be model, vars or eval
-vars=.GET("fspls/data/train",org="Coin",project="golub", query= list(flags = toJSON(flags), phens =toJSON(phens),vars = toJSON(vars)), outp="json")
+flags = list(pthresh = 1e-2, topn=10,beam=1,train="golub_data",test="golub_data") ## return can be model, vars or eval
+vars=.POST("fspls/data/train",org="Coin",project="golub", body= list(flags = toJSON(flags), phens =toJSON(phens)), outp="json")
 print(vars)
-flags$return="model"
-models=.GET("fspls/data/train",org="Coin",project="golub", query= list(flags = toJSON(flags), phens =toJSON(phens),vars = toJSON(vars)), outp="json")
+models=.POST("fspls/data/makeModels",org="Coin",project="golub", body= list(flags = toJSON(flags), phens =toJSON(phens),vars = toJSON(vars)), outp="json")
 
 
-eval =.POST("fspls/data/evaluate",org="Coin",project="golub", query= list(flags = toJSON(flags), phens =toJSON(phens)),body = list(models = toJSON(models)), outp="tsv")
-eval1 =.POST("fspls/data/evaluate",org="Coin",project="golub", query= list(flags = toJSON(flags), phens =toJSON(phens)),body = list(vars = toJSON(vars)), outp="tsv")
+eval =.POST("fspls/data/evaluate",org="Coin",project="golub", body= list(flags = toJSON(flags), phens =toJSON(phens),models = toJSON(models)), outp="tsv")
 
 print(eval)
-print(eval1)
 
 vars[[2]] = vars[[1]][1]
 names(vars) = lapply(vars, function(v) paste(names(v), collapse="."))
-angles=.GET("fspls/data/angles",org="Coin",project="golub", outp="json",  query= list(flags = toJSON(flags), phens =toJSON(phens), vars = toJSON(vars)))
+angles=.POST("fspls/data/angles",org="Coin",project="golub", outp="json",  body= list(flags = toJSON(flags), phens =toJSON(phens), vars = toJSON(vars)))
 print(angles)
 
 #vars[[2]] = vars[[1]][length(vars[[1]])]
 #vars[[3]] = vars[[1]][length(vars[[1]])-1]
 #vars[[4]] = vars[[1]][1:(length(vars[[1]])-1)]
 names(vars) = lapply(vars, function(v) paste(names(v), collapse="."))
-pvalues = .GET("fspls/data/pvalue",org="Coin",project="golub", outp="json",  query= list(flags = toJSON(flags), phens =toJSON(phens), vars = toJSON(vars)))
+pvalues = .POST("fspls/data/pvalue",org="Coin",project="golub", outp="json",  body= list(flags = toJSON(flags), phens =toJSON(phens), vars = toJSON(vars)))
 print(pvalues)
 
 
@@ -65,3 +63,35 @@ print(pvalues)
 ggplot(eval)+geom_point(aes(x=numvars, y=-value, shape=fullmodel, color=data))+
   geom_line(aes(x=numvars, y=-value, linetype=fullmodel, color=data))+
   facet_grid("pheno~type")
+
+
+
+
+
+
+
+###DEBUGGING
+setwd("~/github/streamformatics/R")
+source("libs.R")
+opts = setOptions("~/.sfx")
+dbDir="/home/unimelb.edu.au/lcoin/Data/sAPI"
+keys = keyEnv$new(dbDir)
+endpoint="fspls/data.R"
+all = allEnv$new(dbDir,keys, endpoint)
+datas=all$get1("Coin","golub","golub_data",useBigMatrix=T)
+datas$dims()
+user=opts$USER
+
+phens = datas$pheno()
+flags = list(pthresh = 5e-2, topn=10,beam=1,train="golub_data",test="golub_data") ## return can be model, vars or eval
+vars = datas$train( phens, flags)
+all_models =datas$makeModels(vars,phens,flags)
+eval = datas$evaluateModels(all_models,phens,flags)
+datas$angles(vars,phens,flags)
+
+ggplot(eval)+geom_point(aes(x=numvars, y=-value, shape=fullmodel, color=data))+
+  geom_line(aes(x=numvars, y=-value, linetype=fullmodel, color=data))+
+  facet_grid("pheno~type")
+
+
+print(eval)

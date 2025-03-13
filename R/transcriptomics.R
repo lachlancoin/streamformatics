@@ -10,8 +10,7 @@ if(is.null(opts$USER) || is.null(opts$PASS) || is.null(opts$URL)) stop("!!")
 if(opts$URL=="https://api.localhost") httr::set_config(httr::config(ssl_verifypeer = 0L, ssl_verifyhost = 0L))
 
 ##TEST API RESPONSIVE
-a=.GET("admin/echo", query = list(msg = "A simple text string"), outp="json", encode="json")
-print(a)
+.GET("admin/echo", query = list(msg = "A simple text string"), outp="json", encode="json")
 
 ##REGISTER USER to a specific org
 .GET("admin/register",org="Coin",query = list(key=opts$API_KEY))

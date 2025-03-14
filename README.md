@@ -34,7 +34,6 @@ curlget ${URL}/admin/register/Coin?key=${API_KEY}
 
 #clear results by sample ID
 vcf=ERR10225529.vcf.gz
-
 curlget ${URL}/who/clear/Coin/WHO/2023?sampleID=${vcf}
 
 #get resistance for VCF file
@@ -49,7 +48,7 @@ curlpost  ${URL}/who/resistance/sample/Coin/WHO/2023?sampleID=${vcf}
 ##NODE THAT THIS ONE REQUIRES SAMTOOLS INSTALLED LOCALLY
 bamf=tb-s1.bam
 #bamf=ERR10225529.bam
-samtools view -H ${bamf} > header; curlget ${URL}/who/snps/Coin/WHO/2023 | samtools view ${bamf} -L - | split - prefix -l 4000 --filter="cat header - | samtools view -b - | curl -k -X 'POST' --user ${USER}:${PASS} -F upload=@- ${URL}/who/resistance/bam/Coin/WHO/2023?sampleID=${bamf}"
+samtools view -H ${bamf} > header; curlget ${URL}/who/snps/Coin/WHO/2023 | samtools view ${bamf} -L - | split - prefix -l 1000 --filter="cat header - | samtools view -b - | curl -k -X 'POST' --user ${USER}:${PASS} -F upload=@- ${URL}/who/resistance/bam/Coin/WHO/2023?sampleID=${bamf}"
 
 ##ACCESS RESULTS BY SAMPLE ID
 curlpost  ${URL}/who/resistance/sample/Coin/WHO/2023?sampleID=${bamf}
@@ -80,5 +79,20 @@ curlget ${URL}/sparsely/clear/Coin/TB?sampleID=${vcf}
 #POST BIGGER
 bamf=ERR10225529.bam
 samtools view -H ${bamf} > header;  samtools view ${bamf} | split - prefix -l 1000 --filter="cat header - | samtools view -b - | curl -k -X 'POST' --user ${USER}:${PASS} -F upload=@- ${URL}/sparsely/bam/Coin/TB?sampleID=${bamf}"
+
+
+##FSPLS ENDPOINTS
+##OPTIONAL -PRELOAD DATABASE
+curlpost ${URL}/fspls/data/load/Coin/golub
+curlpost ${URL}/fspls/data/pheno/Coin/golub
+
+#flags='{"pthresh":0.05,"topn":10,"beam":1,"train":"golub_data","test":"golub_data"}'
+#phens='{"x.x"}'
+curlpost -F phens='["x.x"]' -F flags='{"pthresh":0.05,"topn":10,"beam":1,"train":"golub_data","test":"golub_data"}' ${URL}/fspls/data/train/Coin/golub
+curlpost -F phens='["x.x"]' -F flags='{"pthresh":0.05,"topn":10,"beam":1,"train":"golub_data","test":"golub_data"}' ${URL}/fspls/data/train/Coin/golub > vars.json
+curlpost -F phens='["x.x"]' -F flags='{"pthresh":0.05,"topn":10,"beam":1,"train":"golub_data","test":"golub_data"}' -F upload=@vars.json ${URL}/fspls/data/makeModels/Coin/golub > models.json
+curlpost -F phens='["x.x"]' -F flags='{"pthresh":0.05,"topn":10,"beam":1,"train":"golub_data","test":"golub_data"}' -F upload=@models.json ${URL}/fspls/data/evaluate/Coin/golub > eval.csv
+
+curlpost  -F upload=@eval.csv ${URL}/fspls/data/plot/Coin > eval.png
 
 

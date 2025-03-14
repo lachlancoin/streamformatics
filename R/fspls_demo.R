@@ -85,7 +85,11 @@ user=opts$USER
 phens = datas$pheno()
 flags = list(pthresh = 5e-2, topn=10,beam=1,train="golub_data",test="golub_data") ## return can be model, vars or eval
 vars = datas$train( phens, flags)
-all_models =datas$makeModels(vars,phens,flags)
+vars = read_json("~/Data/sparsely/vars.json")
+all_models1 =datas$makeModels(vars,phens,flags)
+
+
+all_models = read_json("~/Data/sparsely/models.json",simplifyVector = T)
 eval = datas$evaluateModels(all_models,phens,flags)
 datas$angles(vars,phens,flags)
 

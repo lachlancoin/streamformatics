@@ -14,9 +14,8 @@ Note that you choose username and password and you need to ask for the key from 
 ##CAN ADD FOLLOWING TO .bashrc
 #The -k option is only required for localhost
 while read line; do export $line; done <~/.sfx
-
-#alias curlget='curl -k -X 'GET' --user ${USER}:${PASS}'
-#alias curlpost='curl -k -X 'POST' --user ${USER}:${PASS}'
+alias curlget='curl -k -X 'GET' --user ${USER}:${PASS}'
+alias curlpost='curl -k -X 'POST' --user ${USER}:${PASS}'
 
 
 
@@ -29,6 +28,9 @@ curlget ${URL}/admin/echo?msg=test
 ##NEED THE KEY
 
 curlget ${URL}/admin/register/Coin?key=${API_KEY}
+
+##MAKE NEW DATABASE
+curlget ${URL}/admin/make/Coin/RAPIDS5/Discovery
 
 ##WHO ENDPOINTS
 
@@ -96,3 +98,15 @@ curlpost -F phens='["x.x"]' -F flags='{"pthresh":0.05,"topn":10,"beam":1,"train"
 curlpost  -F upload=@eval.csv ${URL}/fspls/data/plot/Coin > eval.png
 
 
+
+###UPLOADING TRANSCRIPTOMICS ENDPONTS
+##stream kallisto file
+file="/home/unimelb.edu.au/lcoin/Data/sAPI/Coin/LCAH/6202_12_S49_R1_001.tsv.gz"
+curlpost -F flags='{"format":"kallisto"}' -F upload=@${file}  ${URL}/dist/stream/Coin/RAPIDS4/Discovery
+
+
+pheno_f = "/home/unimelb.edu.au/lcoin/Data/sAPI/Coin/LCAH/Discovery_meta.csv"
+curlpost -F flags='{"slug_phen":"function(x)x","slug_sample":"function(x)toupper(x)","id":"Sequencing_Sample_ID","sep":","}' -F upload=@${pheno_f}  ${URL}/dist/upload_pheno/Coin/RAPIDS4/Discovery
+
+
+curlget ${URL}/dist/samples/Coin/RAPIDS4/Discovery

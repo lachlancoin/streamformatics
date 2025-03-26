@@ -3,9 +3,12 @@ Client for accessing streamformatics
 
 You need a file called  "~/.sfx" with following format
 
-URL=https://api.streamformatics.org
+URL={URL}
+
 USER={username}
+
 PASS={pass}
+
 API_KEY={key}
 
 

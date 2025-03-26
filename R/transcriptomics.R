@@ -49,6 +49,7 @@ types=.GET("dist/types", org="Coin", project="RAPIDS1",db="Discovery",outp="json
 setwd("~/github/streamformatics/R")
 source("libs.R")
 opts = setOptions("~/.sfx")
+
 dbDir="/home/unimelb.edu.au/lcoin/Data/sAPI"
 
 keys = keyEnv$new(dbDir)
@@ -59,17 +60,29 @@ endpoint="dist.R"
 all = allEnv$new(dbDir,keys, endpoint)
 dist=all$get("Coin","RAPIDS4","Discovery")
 user=opts$USER
-f="/home/unimelb.edu.au/lcoin/Data/sAPI/Coin/LCAH/6202_12_S49_R1_001.tsv.gz"
-sampleID = rev(strsplit(f,"/")[[1]])[1]
-flags = list(format="kallisto")
-dist$stream(f, sampleID,user, flags)
+
 pheno_f = "/home/unimelb.edu.au/lcoin/Data/sAPI/Coin/LCAH/Discovery_meta.csv"
 nmef= rev(strsplit(pheno_f,"/")[[1]])[1]
 flags = list(slug_phen="function(x)x", 
              slug_sample = "function(x)toupper(x)",
              id="Sequencing_Sample_ID",
              sep=","
-             )
+)
 dist$upload_pheno(pheno_f, nmef, user, flags)
+
+f="/home/unimelb.edu.au/lcoin/Data/sAPI/Coin/LCAH/6202_12_S49_R1_001.tsv.gz"
+sampleID = rev(strsplit(f,"/")[[1]])[1]
+
+flags = list(sampleIDs=c(sampleID), slug_sample = "function(x)toupper(x)",
+             nxtchr=c("_","-","."),
+             to_return="tsv")
+
+dist$match(flags$sampleIDs,list(flags=toJSON(flags)))
+
+flags$link_to_pheno=TRUE
+flags$format="kallisto"
+
+dist$stream(f, sampleID,user, flags)
+
 
 

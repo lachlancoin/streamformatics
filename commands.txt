@@ -38,7 +38,7 @@ curlpost  ${URL}/who/resistance/sample/Coin/WHO/2023?sampleID=${vcf}
 ##NODE THAT THIS ONE REQUIRES SAMTOOLS INSTALLED LOCALLY
 bamf=tb-s1.bam
 #bamf=ERR10225529.bam
-samtools view -H ${bamf} > header; curlget ${URL}/who/snps/Coin/WHO/2023 | samtools view ${bamf} -L - | split - prefix -l 1000 --filter="cat header - | samtools view -b - | curl -k -X 'POST' --user ${USER}:${PASS} -F upload=@- ${URL}/who/resistance/bam/Coin/WHO/2023?sampleID=${bamf}"
+samtools view -H ${bamf} > header; curlget ${URL}/who/snps/Coin/WHO/2023 | samtools view -F 4 -F 256 ${bamf} -L - | split - prefix -l 1000 --filter="cat header - | samtools view -b - | curl -k -X 'POST' --user ${USER}:${PASS} -F upload=@- ${URL}/who/resistance/bam/Coin/WHO/2023?sampleID=${bamf}"
 
 ##ACCESS RESULTS BY SAMPLE ID
 curlpost  ${URL}/who/resistance/sample/Coin/WHO/2023?sampleID=${bamf}
@@ -68,7 +68,7 @@ curlget ${URL}/sparsely/clear/Coin/TB?sampleID=${vcf}
 
 #POST BIGGER
 bamf=ERR10225529.bam
-samtools view -H ${bamf} > header;  samtools view ${bamf} | split - prefix -l 1000 --filter="cat header - | samtools view -b - | curl -k -X 'POST' --user ${USER}:${PASS} -F upload=@- ${URL}/sparsely/bam/Coin/TB?sampleID=${bamf}"
+samtools view -H ${bamf} > header;  samtools view -F 4 -F 256 ${bamf} | split - prefix -l 1000 --filter="cat header - | samtools view -b - | curl -k -X 'POST' --user ${USER}:${PASS} -F upload=@- ${URL}/sparsely/bam/Coin/TB?sampleID=${bamf}"
 
 
 ##FSPLS ENDPOINTS

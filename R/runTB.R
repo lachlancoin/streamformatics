@@ -76,7 +76,7 @@ bamf="ERR10225529.bam"
 sampleID=bamf
 who$clear(user,sampleID)
 who$bam(bamf,sampleID,user,flags)
-aa=who$resistance(sampleID, user,flags) 
+who$resistance(sampleID, user,flags) 
 
 
 

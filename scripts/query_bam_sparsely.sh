@@ -29,7 +29,7 @@ user=$(whoami)
 
 url2="${URL}/sparsely/clear/Coin/TB?sampleID=${bf}"
 url3="${URL}/sparsely/bam/Coin/TB?sampleID=${bf}"
-url4="${URL}/sparsely/resistance/Coin/TB?sampleID=${bf}"
+url4="${URL}/sparsely/sample/Coin/TB?sampleID=${bf}"
 
 
 
@@ -51,11 +51,11 @@ curl -X 'POST' -k  --user "${user}:${PASS}"   $url2
 
 
 #curl -k  --user "${user}:${PASS}" -F flags="${flags}"  $url2  | samtools view $1  -L -  | split - prefix -l ${split} --filter='cat header - | samtools view -b - > $FILE.bam'
-cmd="samtools view -H $bf > header; samtools view $bf | split - prefix -l ${split} --filter=\"cat header - | samtools view -b -  | curl -X 'POST' -k  --user \"${user}:${PASS}\"  -F flags='${flags1}' -F upload=@- ${url3}\""
+cmd="samtools view -H $bf > header; samtools view -F 4 -F 256 $bf | split - prefix -l ${split} --filter=\"cat header - | samtools view -b -  | curl -X 'POST' -k  --user \"${user}:${PASS}\"  -F flags='${flags1}' -F upload=@- ${url3}\""
 >&2 echo $cmd
-samtools view -H $bf > header;  samtools view $bf  | split - prefix -l ${split} --filter="cat header - | samtools view -b -  | curl -X 'POST' -k  --user \"${user}:${PASS}\"   -F upload=@- ${url3}"
+samtools view -H $bf > header;  samtools view -F 4 -F 256 $bf  | split - prefix -l ${split} --filter="cat header - | samtools view -b  -  | curl -X 'POST' -k  --user \"${user}:${PASS}\"   -F upload=@- ${url3}"
 
-
+#samtools view -bq 1
 cmd="curl -X 'GET' -k  --user \"${user}:${PASS}\" -F flags='${flags2}'  $url4"
 echo $cmd
 

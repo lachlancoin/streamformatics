@@ -52,30 +52,40 @@ flags[['sampleID']] = "tmp1.bam"
 ###FOLLOWING FOR RUNNING WITHIN R  - THIS IS MORE FOR DEBUGGING
 setwd("~/github/streamformatics/R")
 source("libs.R")
+setwd("~/Data/sparsely")
 opts = setOptions("~/.sfx")
 dbDir="/home/unimelb.edu.au/lcoin/Data/sAPI"
 
 keys = keyEnv$new(dbDir)
 endpoint="sparsely.R"
 all = allEnv$new(dbDir,keys, endpoint)
-msim=all$get1("Coin","TB",bm=F)
+msim=all$get1("Coin","TB",useBigMatrix = F)
 user=opts$USER
 
-flags = list(type="geno", tool="mykrobe")
-setwd("~/Data/sparsely")
+flags = list(type="pheno", tool="mykrobe")
+
 vcf_file = "ERR10225529.vcf.gz"
 cov_file="ERR10225529.bam.cov.gz" 
 bamf="ERR10225529.bam"
 
+
+cov_file="barcode03.cov.gz"
+vcf_file="barcode03.targets.vcf.gz"
 sampleID=vcf_file
 msim$vcf(vcf_file, cov_file, sampleID, user)
+flags$type="pheno"
 msim$get_resistance(sampleID, user,flags)
-msim$get_resistance(sampleID, user, flags)
+#msim$get_resistance(sampleID, user, flags)
 
 bamf="ERR10225529.bam"
+bamf="barcode03.bam"
+bamf="tb-s1.bam"
 bamf="tmp1.bam"
 sampleID=bamf
+flags$max_reads=50000
+flags$step=5000
+flags$show_step=T
 msim$bam(bamf, sampleID, user, flags)
-
+flags$type="pheno"
 msim$get_resistance(sampleID, user, flags)
 

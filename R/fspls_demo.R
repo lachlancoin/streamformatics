@@ -82,10 +82,52 @@ all = allEnv$new(dbDir,keys, "fspls/data.R")
 ### MAKE NEW DATABAES
 all_dist = allEnv$new(dbDir,keys,"dist.R")
 keys$makeDB("lcoin","Coin","LCAH","Discovery")
+
+###DEPMAP
+#keys$dbs("Coin","Depmap")
+#keys$removeDB(opts$USER, "Coin","Depmap","primary",deleteDir=T)
+#keys$makeDB(opts$USER, "Coin","Depmap","primary")
+
+dist1 = all_dist$get("Coin","Depmap","primary",reset=F)
+dist1$sampleID()
+
+##UPLOADING DEPMAP
+depmap="/home/unimelb.edu.au/lcoin/Data/Depmap"
+filenames=list(rna="CCLE_expression.csv.gz",cn="CCLE_gene_cn.csv.gz"  )
+flags = list()
+lapply(names(filenames), function(nme){
+  print(nme)
+    mat = data.frame(data.table::fread(paste(depmap,filenames[[nme]],sep="/"),sep=","))
+    rownames(mat) = mat[,1]
+    colnames(mat) = unlist(lapply(colnames(mat), function(str) strsplit(str,"\\..")[[1]][1]))
+    #dimnames(mat)[[1]] = mat[,1]
+    print("importing")
+    dist1$importMat(mat[,-1], filenames[[nme]], opts$USER, flags, type=nme)
+    print("done")
+})
+nme1 = "primary-screen-replicate-collapsed-logfold-change.csv.gz"
+filenme1 = paste(depmap,nme1,sep="/")
+flags = list()
+flags[['sep']]=','; flags[['id']]="V2"
+phenos1 = dist1$getPheno("drugs")
+phenos1$upload_pheno(filenme1,nme1,opts$USER,flags, samples=dist1$sampleID())
+phenos2 = dist1$getPheno("cells")
+nme2 = "sample_info.csv.gz"
+filenme2 = paste(depmap,nme2,sep="/")
+flags$slug_sample = '["function(x) x"]'
+flags$id = "DepMap_ID";flags$sep=","
+phenos2$upload_pheno(filenme2, nme2, opts$USER, flags, samples = dist1$sampleID())
+#####
+
+flags = list(nrep=10,batch=0,bigmatrix=T,splitBy="disease",nphenos=10, keep="pancreatic")
+datasAll = all$get1("Coin","Depmap",flags=flags, reload=F)
+
+
+
 dist1 = all_dist$get("Coin","LCAH","Discovery")
 dist2 = all_dist$get("Coin","LCAH","Validation")
-flags = list(nrep=5, bigmatrix=F)
-datas=all$get1("Coin","LCAH",flags=flags)
+flags = list(nrep=5, bigmatrix=F, nphenos=5)
+datasAll=all$get1("Coin","LCAH",flags=flags)
 #datas2=all$get1("Coin","LCAH","Validation",flags=flags)
 dir="/home/unimelb.edu.au/lcoin/Data/sAPI/Coin/LCAH/LCAH_data"
 dir1="/home/unimelb.edu.au/lcoin/Data/sAPI/Coin/LCAH"
@@ -105,32 +147,57 @@ export = phenos$exportPheno()
 #####
 
 
-flags = list(nrep=1,batch=0)
-#datas=all$get1("Coin","golub","golub_data",flags=flags)
-datas=all$get1("Coin","LCAH",flags=flags, reload=T)
+#flags = list(nrep=10,batch=0)
+#datasAll=all$get1("Coin","golub","golub_data",flags=flags)
+#datasAll=all$get1("Coin","LCAH",flags=flags, reload=T)
 
-datas$dims()
+##RUN
+datasAll$dims()
 user=opts$USER
 
-phens = datas$pheno()[1]
-phens = "disease_class"
-flags = list(pthresh = 5e-5,max=10, topn=20,nrep=5, train="Discovery") ## return can be model, vars or eval
-vars = datas$select ( phens, flags)
+phens = datasAll$pheno()
+options("fspls.types"=
+          fromJSON('{"gaussian": ["correlation","var"],"binomial":"AUC","multinomial":"AUC_all","ordinal" : "AUC_all"}'))
+#phens = phens[1:4]
+flags1 = list(var_thresh = 0.05, 
+              pthresh = 1e-4,max=10, topn=20,nrep=5,beam=1, train=grep("Pancreatic", names(datasAll$datas),v=T)) ## return can be model, vars or eval
+flags1$test=flags1$train
+eval_all = lapply(phens[[1]], function(ph1){
+  ph = list(ph1)
+  names(ph)=names(phens)
+  vars = datasAll$select ( phens, flags1,verbose=F)
+  if(length(names(vars))==0) return(NULL)
+
+ vars1 = vars[unlist(lapply(vars, function(var) "full" %in% names(var$inds)))]
+if(length(vars1)==0) return(NULL)
+  all_models =datasAll$makeAllModels(vars1,phens,flags1)
+
+  eval0 = datasAll$evaluateAllModels(all_models,phens,flags1)
+  print(subset(eval0,cv==T))
+  eval1 = .calcEval1(eval0,sep_by="")
+  .plotEval1(eval1, grid="pheno~cv", rename=T,shape_color="measure", linetype="fullmodel",logy=T)
+  eval1
+})
+eval0 = .merge1_new(eval_all)
+eval2 = subset(eval0,cv=="CV= avg" & measure=="var")
+#eval2 = subset(eval_,cv=="CV= avg" & measure=="var")
+topmid =tail(sort(eval2$mid,decr=T),1)
+best_pheno=unique(eval2$pheno[match(topmid,eval2$mid)])
+
+eval3 = subset(eval0,pheno %in% best_pheno)
+eval3$pheno=factor(eval3$pheno, levels = best_pheno)
+#eval2 = subset(eval,pheno==eval$p)
 
 
-#vars1 = fromJSON(toJSON(vars))
+ggps=.plotEval1(eval3, grid="pheno~cv", rename=T,shape_color="measure", linetype="fullmodel",logy=T)
+ggps
+#ggps=.plotEval1(eval,sep="pheno", grid="data~cv", rename=T,shape_color="subpheno", linetype="fullmodel")
 
-#vars = read_json("~/Data/sparsely/vars.json")
-all_models =datas$makeAllModels(vars,phens,flags)
-
-eval = datas$evaluateAllModels(all_models,phens[1],flags)
-.plotEval1(eval,sep="cohort_measure", grid="data~cv", rename=T,shape_color="subpheno", linetype="fullmodel")
-
-predictions =datas$extractPredictions(all_models,phens[1], flags, CV = F);
+predictions =datasAll$extractPredictions(all_models,phens[1], flags, CV = F);
 #aa=roc(predictions[[2]]$y, predictions[[2]]$X0)
 .plotArea(predictions, rename=T)
 
 
-datas$angles(vars,phens,flags)
+datasAll$angles(vars,phens,flags)
 
 

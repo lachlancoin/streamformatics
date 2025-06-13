@@ -15,7 +15,8 @@ library(dplyr)
 library(readxl)
 library(base64enc)
 library(Rsamtools); library(GenomicAlignments);
-library(wCorr)
+#library(wCorr)
+library(confintr)
 
 library(arrow)
 library(binom); 

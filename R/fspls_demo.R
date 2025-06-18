@@ -1,8 +1,13 @@
 ### SCRIPT FOR TB QUERYING WHO CATALOG
 rlib="~/R/x86_64-pc-linux-gnu-library/4.4/"
+rlib="~/R/x86_64-pc-linux-gnu-library/4.1/"
+
 .libPaths(rlib)
 
 github="/data/gpfs/projects/punim1068/github"
+github="~/github"
+dbDir="/home/lcoin/punim1140/Depmap_LCOIN/sAPI"
+dbDir="/home/unimelb.edu.au/lcoin/Data/sAPI"
 options(bigmemory.allow.dimnames=TRUE)
 #install.packages("readr",lib=rlib)
 library(curl);library(httr); library(jsonlite);library(ggplot2)
@@ -80,7 +85,7 @@ ggplot(eval)+geom_point(aes(x=numvars, y=-value, shape=fullmodel, color=data))+
 setwd(paste0(github,"/streamformatics/R"))
 source("libs.R")
 opts = setOptions("~/.sfx")
-dbDir="/home/lcoin/punim1140/Depmap_LCOIN/sAPI"
+
 keys = keyEnv$new(dbDir)
 all = allEnv$new(dbDir,keys, "fspls/data.R")
 
@@ -131,20 +136,21 @@ datasAll = all$get1("Coin","Depmap",flags=flags, reload=F)
 
 dist1 = all_dist$get("Coin","LCAH","Discovery")
 dist2 = all_dist$get("Coin","LCAH","Validation")
-flags = list(nrep=5, bigmatrix=F, nphenos=5)
+flags = list(nrep=1, bigmatrix=F, phen_nme="gn",all_v_all=T)
 datasAll=all$get1("Coin","LCAH",flags=flags)
 #datas2=all$get1("Coin","LCAH","Validation",flags=flags)
 dir="/home/unimelb.edu.au/lcoin/Data/sAPI/Coin/LCAH/LCAH_data"
 dir1="/home/unimelb.edu.au/lcoin/Data/sAPI/Coin/LCAH"
 nme="22022024_RAPIDS_Pheonix_scores.csv"
-nme1 = "Validation_meta.csv"
-filenme = paste(dir,nme,sep="/")
+nme1 = "Discovery_meta.csv"
+nme2 = "Validation_meta.csv"
 filenme1 = paste(dir1,nme1,sep="/")
+filenme2 = paste(dir1,nme2,sep="/")
 
-phenos = dist1$phenos;
-phenos2 = dist2$phenos
+phenos = dist1$getPheno("gn")
+phenos2 = dist2$getPheno("gn")
 phenos$upload_pheno(filenme1,nme1,opts$USER,flags, samples=dist1$sampleID())
-phenos2$upload_pheno(filenme1,nme1,opts$USER,flags, samples=dist2$sampleID())
+phenos2$upload_pheno(filenme2,nme2,opts$USER,flags, samples=dist2$sampleID())
 
 phenos$upload_pheno(filenme1,nme1,opts$USER,flags, samples=samples)
 export = phenos$exportPheno()
@@ -160,36 +166,36 @@ export = phenos$exportPheno()
 datasAll$dims()
 user=opts$USER
 
-phens = datasAll$pheno(sep=T)
+phens = datasAll$pheno(sep_group=T)
 #grep(bestpheno,unlist(phens))
-#phens = phens[4499]
+phens = phens[1]
 options("fspls.types"=
-          fromJSON('{"gaussian": ["correlation","var","mad"],"binomial":"AUC","multinomial":"AUC_all","ordinal" : "AUC_all"}'))
+          fromJSON('{"gaussian": ["correlation","var","mad"],"binomial":"AUC","multinomial":"AUC","ordinal" : "AUC"}'))
 #phens = phens[1:4]
 flags1 = list(var_thresh = 0.05, 
-              pthresh = 1e-6,max=10, topn=20,nrep=5,beam=1, train=grep("Pancreatic", names(datasAll$datas),v=T)) ## return can be model, vars or eval
+              pthresh = 1e-10,max=10, topn=20,nrep=10,beam=1, train=names(datasAll$datas)[1]) ## return can be model, vars or eval
 flags1$test=flags1$train
-
+#datasAll$update(flags1)
   vars = datasAll$select ( phens, flags1,verbose=T)
   if(length(names(vars))==0) return(NULL)
-
-  full_inds= lapply(vars$inds, function(vars1) vars1[unlist(lapply(vars1, function(var) "full" %in% names(var)))])
-  full_inds = full_inds[unlist(lapply(full_inds, length))>0]
-  print(full_inds)
+  varn = lapply(vars$inds, function(v) unlist(lapply(v,names)))
+  full_inds = unlist(lapply(varn, function(v) length(grep("full",v))))>0
+  print(varn[full_inds])
   
   all_models =datasAll$makeAllModels(vars,phens,flags1)
 
   eval0 = datasAll$evaluateAllModels(all_models,phens,flags1)
-  eval0 = subset(eval0, !is.na(mid))
+  subset(eval0, isfull &cv)
   
   toSave = list(vars = vars, all_models = all_models, eval0 = eval0)  
   saveRDS(toSave,"all1.rds")
-  eval_cv_full = subset(eval0,isfull & cv & measure=="correlation" ) 
-  hist(eval_cv_full$mid,br=100)
+#  eval_cv_full = subset(eval0,isfull & cv & measure=="correlation" ) 
+ # hist(eval_cv_full$mid,br=100)
   
-  eval_cv = (subset(eval0,cv==T & measure=="var"))
+  eval_cv = (subset(eval0,cv==T & isfull))
  # which.max(eval_cv_full$mid)
-  eval1 = .calcEval1(eval0,sep_by="pheno")
+  eval1 = .calcEval1(eval0)
+  ggps=.plotEval1(eval1,legend=F) #, grid="pheno~cv_full",showranges = F)
   #eval1 = eval1[grep("avg", eval1$cv, inv=T),]
   eval1 = subset(eval1, cv_full=="CV= TRUE FULL= TRUE")
   ggp=.plotEval1(eval1, grid="measure~cv_full", rename=T,shape_color="pheno", linetype="fullmodel",logy=F, legend=F,showranges=F)

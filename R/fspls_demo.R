@@ -1,13 +1,11 @@
 ### SCRIPT FOR TB QUERYING WHO CATALOG
-rlib="~/R/x86_64-pc-linux-gnu-library/4.4/"
-rlib="~/R/x86_64-pc-linux-gnu-library/4.1/"
 
+opts = setOptions("~/.sfx")
+rlib = opts$rlib
+dbDir = opts$dbDir
+github=opts$github
 .libPaths(rlib)
 
-github="/data/gpfs/projects/punim1068/github"
-github="~/github"
-dbDir="/home/lcoin/punim1140/Depmap_LCOIN/sAPI"
-dbDir="/home/unimelb.edu.au/lcoin/Data/sAPI"
 options(bigmemory.allow.dimnames=TRUE)
 #install.packages("readr",lib=rlib)
 library(curl);library(httr); library(jsonlite);library(ggplot2)
@@ -15,7 +13,6 @@ library(readr);
 source(paste0(github,"/streamformatics/R/helper.R"))
 
 ##SET OPTIONS
-opts = setOptions("~/.sfx")
 if(is.null(opts$USER) || is.null(opts$PASS) || is.null(opts$URL)) stop("!!")
 if(opts$URL=="https://api.localhost") httr::set_config(httr::config(ssl_verifypeer = 0L, ssl_verifyhost = 0L))
 
@@ -129,8 +126,8 @@ flags$id = "DepMap_ID";flags$sep=","
 phenos2$upload_pheno(filenme2, nme2, opts$USER, flags, samples = dist1$sampleID())
 #####
 
-flags = list(nrep=0,batch=1,bigmatrix=F,splitBy="disease",nphenos=50000, keep="pancreatic")
-datasAll = all$get1("Coin","Depmap",flags=flags, reload=F)
+flags = list(nrep=0,batch=1,bigmatrix=F,splitBy="disease",nphenos=50000, keep="pancreatic",var_thresh = 1.0, var_thresh_y_quantile = 0.5)
+datasAll = all$get1("Coin","Depmap",flags=flags, reload=T)
 
 
 
@@ -171,19 +168,19 @@ datasAll$dims()
 user=opts$USER
 
 
-phens = datasAll$pheno(sep_group=T)
+phens = datasAll$pheno(sep_group=F,sep=T)
 #grep(bestpheno,unlist(phens))
-phens = phens[1]
+#phens = phens[1]
 options("fspls.types"=
           fromJSON('{"gaussian": ["correlation","var","mad"],"binomial":"AUC","multinomial":"AUC","ordinal" : "AUC"}'))
 #phens = phens[1:4]
-flags1 = list(var_thresh = 0.05,# genes_incls =genes_incls,
-              pthresh = 1e-10,max=10, topn=20,nrep=10,beam=1, train=names(datasAll$datas)) ## return can be model, vars or eval
-#flags1$test=flags1$train
+flags1 = list(var_quantile = 0.00,# genes_incls =genes_incls,
+              pthresh = 1e-10,max=10, topn=20,nrep=0,batch=1, beam=1, train=names(datasAll$datas)) ## return can be model, vars or eval
+flags1$test=flags1$train
 datasAll$update(flags1)
  #vars = datasAll$convert(genes_incls,phens)
-  vars = datasAll$select ( phens, flags1,verbose=T)
-  if(length(names(vars))==0) return(NULL)
+  vars = datasAll$select ( phens, flags1,verbose=F)
+  #if(length(names(vars))==0) return(NULL)
   varn = lapply(vars$inds, function(v) unlist(lapply(v,names)))
   full_inds = unlist(lapply(varn, function(v) length(grep("full",v))))>0
   print(varn[full_inds])
@@ -196,13 +193,20 @@ datasAll$update(flags1)
   
   #toSave = list(vars = vars, all_models = all_models, eval0 = eval0)  
   #saveRDS(toSave,"all1.rds")
-#  eval_cv_full = subset(eval0,isfull & cv & measure=="correlation" ) 
- # hist(eval_cv_full$mid,br=100)
-  #eval_cv = (subset(eval0,cv==T & isfull))
+  eval_cv_full = subset(eval0,isfull & cv & measure=="correlation" ) 
+  eval_cv_full = subset(eval0,isfull & cv & measure=="correlation" ) 
+  
+  hist(eval_cv_full$mid,br=100)
+  eval_cv = (subset(eval0,cv==T & isfull))
  # which.max(eval_cv_full$mid)
   eval1 = .calcEval1(eval0)
-  ggps=.plotEval1(eval1,legend=T, grid="pheno~subpheno", shape_color=c("trainedOn","data"),sep_by="cv_full") #, grid="pheno~cv_full",showranges = F)
+  eval1_avg = subset(eval1, cv=="CV= avg" & measure=="correlation")
+#  ggps=.plotEval1(eval1,legend=T, grid="pheno~subpheno", shape_color=c("trainedOn","data","measure"),sep_by="cv_full") #, grid="pheno~cv_full",showranges = F)
+  ggps=.plotEval1(eval1,legend=T, grid="pheno~cv_full", shape_color=c("measure"),sep_by="", showranges=F) #, grid="pheno~cv_full",showranges = F)
+    ggps=.plotEval1(eval1,legend=T, grid="pheno", shape_color=c("measure"),sep_by=c("cv_full"), showranges=F) #, grid="pheno~cv_full",showranges = F)
+
   
+  ggps
   out = paste0("plot3_",max(eval1$numvars),".pdf");
   pdf(out,width=30,height=30)
   for(ggp in ggps) print(ggp)

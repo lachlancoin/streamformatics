@@ -136,7 +136,11 @@ datasAll = all$get1("Coin","Depmap",flags=flags, reload=F)
 
 dist1 = all_dist$get("Coin","LCAH","Discovery")
 dist2 = all_dist$get("Coin","LCAH","Validation")
-flags = list(nrep=1, bigmatrix=F, phen_nme="gn",all_v_all=T)
+flags = list(nrep=1, bigmatrix=T, phen_nme="all",all_v_all=T)
+#old_sigs = read_json("~/Data/sAPI/disease_severity_signature_weights.json")
+#genes_incls= unlist(lapply(old_sigs$weights$Sig.1$attributes$dimnames$variables,function(str)strsplit(str,"_")[[1]][1]))[-1]
+#flags[['genes_incls']] =genes_incls
+
 datasAll=all$get1("Coin","LCAH",flags=flags)
 #datas2=all$get1("Coin","LCAH","Validation",flags=flags)
 dir="/home/unimelb.edu.au/lcoin/Data/sAPI/Coin/LCAH/LCAH_data"
@@ -166,16 +170,18 @@ export = phenos$exportPheno()
 datasAll$dims()
 user=opts$USER
 
+
 phens = datasAll$pheno(sep_group=T)
 #grep(bestpheno,unlist(phens))
 phens = phens[1]
 options("fspls.types"=
           fromJSON('{"gaussian": ["correlation","var","mad"],"binomial":"AUC","multinomial":"AUC","ordinal" : "AUC"}'))
 #phens = phens[1:4]
-flags1 = list(var_thresh = 0.05, 
-              pthresh = 1e-10,max=10, topn=20,nrep=10,beam=1, train=names(datasAll$datas)[1]) ## return can be model, vars or eval
-flags1$test=flags1$train
-#datasAll$update(flags1)
+flags1 = list(var_thresh = 0.05,# genes_incls =genes_incls,
+              pthresh = 1e-10,max=10, topn=20,nrep=1,beam=1, train=names(datasAll$datas)[1]) ## return can be model, vars or eval
+#flags1$test=flags1$train
+datasAll$update(flags1)
+ #vars = datasAll$convert(genes_incls,phens)
   vars = datasAll$select ( phens, flags1,verbose=T)
   if(length(names(vars))==0) return(NULL)
   varn = lapply(vars$inds, function(v) unlist(lapply(v,names)))
@@ -183,7 +189,8 @@ flags1$test=flags1$train
   print(varn[full_inds])
   
   all_models =datasAll$makeAllModels(vars,phens,flags1)
-
+  #all_models1 =datasAll$makeAllModels(vars,phens,flags1)
+  
   eval0 = datasAll$evaluateAllModels(all_models,phens,flags1)
   subset(eval0, isfull &cv)
   
@@ -195,7 +202,13 @@ flags1$test=flags1$train
   eval_cv = (subset(eval0,cv==T & isfull))
  # which.max(eval_cv_full$mid)
   eval1 = .calcEval1(eval0)
-  ggps=.plotEval1(eval1,legend=F) #, grid="pheno~cv_full",showranges = F)
+  ggps=.plotEval1(eval1,legend=T, grid="pheno~subpheno", shape_color="data",sep_by="cv_full") #, grid="pheno~cv_full",showranges = F)
+  
+  out = paste0("plot3_",max(eval1$numvars),".pdf");
+  pdf(out,width=30,height=30)
+  for(ggp in ggps) print(ggp)
+  dev.off()
+  
   #eval1 = eval1[grep("avg", eval1$cv, inv=T),]
   eval1 = subset(eval1, cv_full=="CV= TRUE FULL= TRUE")
   ggp=.plotEval1(eval1, grid="measure~cv_full", rename=T,shape_color="pheno", linetype="fullmodel",logy=F, legend=F,showranges=F)

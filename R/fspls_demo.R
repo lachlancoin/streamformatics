@@ -178,7 +178,7 @@ options("fspls.types"=
           fromJSON('{"gaussian": ["correlation","var","mad"],"binomial":"AUC","multinomial":"AUC","ordinal" : "AUC"}'))
 #phens = phens[1:4]
 flags1 = list(var_thresh = 0.05,# genes_incls =genes_incls,
-              pthresh = 1e-10,max=10, topn=20,nrep=1,beam=1, train=names(datasAll$datas)[1]) ## return can be model, vars or eval
+              pthresh = 1e-10,max=10, topn=20,nrep=10,beam=1, train=names(datasAll$datas)) ## return can be model, vars or eval
 #flags1$test=flags1$train
 datasAll$update(flags1)
  #vars = datasAll$convert(genes_incls,phens)
@@ -192,17 +192,16 @@ datasAll$update(flags1)
   #all_models1 =datasAll$makeAllModels(vars,phens,flags1)
   
   eval0 = datasAll$evaluateAllModels(all_models,phens,flags1)
-  subset(eval0, isfull &cv)
+ # subset(eval0, isfull &cv)
   
-  toSave = list(vars = vars, all_models = all_models, eval0 = eval0)  
-  saveRDS(toSave,"all1.rds")
+  #toSave = list(vars = vars, all_models = all_models, eval0 = eval0)  
+  #saveRDS(toSave,"all1.rds")
 #  eval_cv_full = subset(eval0,isfull & cv & measure=="correlation" ) 
  # hist(eval_cv_full$mid,br=100)
-  
-  eval_cv = (subset(eval0,cv==T & isfull))
+  #eval_cv = (subset(eval0,cv==T & isfull))
  # which.max(eval_cv_full$mid)
   eval1 = .calcEval1(eval0)
-  ggps=.plotEval1(eval1,legend=T, grid="pheno~subpheno", shape_color="data",sep_by="cv_full") #, grid="pheno~cv_full",showranges = F)
+  ggps=.plotEval1(eval1,legend=T, grid="pheno~subpheno", shape_color=c("trainedOn","data"),sep_by="cv_full") #, grid="pheno~cv_full",showranges = F)
   
   out = paste0("plot3_",max(eval1$numvars),".pdf");
   pdf(out,width=30,height=30)

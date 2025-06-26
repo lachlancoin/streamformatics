@@ -1,4 +1,14 @@
-### SCRIPT FOR TB QUERYING WHO CATALOG
+
+setOptions<-function(config){
+  if(!file.exists(config))stop("need config file specifying USER,PASS and KEY")
+  config = t(read.csv(config,sep="=",header=F))
+  config1 = as.list(config[2,])
+  names(config1) = config[1,]
+  config1 = rev(config1)
+  config1 = config1[!duplicated(names(config1))]
+  options(config1)
+  config1
+}
 
 opts = setOptions("~/.sfx")
 rlib = opts$rlib
@@ -10,7 +20,6 @@ options(bigmemory.allow.dimnames=TRUE)
 #install.packages("readr",lib=rlib)
 library(curl);library(httr); library(jsonlite);library(ggplot2)
 library(readr);
-source(paste0(github,"/streamformatics/R/helper.R"))
 
 ##SET OPTIONS
 if(is.null(opts$USER) || is.null(opts$PASS) || is.null(opts$URL)) stop("!!")
@@ -82,7 +91,7 @@ ggplot(eval)+geom_point(aes(x=numvars, y=-value, shape=fullmodel, color=data))+
 setwd(paste0(github,"/streamformatics/R"))
 source("libs.R")
 opts = setOptions("~/.sfx")
-
+dbDir = opts$dbDir
 keys = keyEnv$new(dbDir)
 all = allEnv$new(dbDir,keys, "fspls/data.R")
 
@@ -126,19 +135,29 @@ flags$id = "DepMap_ID";flags$sep=","
 phenos2$upload_pheno(filenme2, nme2, opts$USER, flags, samples = dist1$sampleID())
 #####
 
-flags = list(nrep=0,batch=1,bigmatrix=F,splitBy="disease",nphenos=50000, keep="pancreatic",var_thresh = 1.0, var_thresh_y_quantile = 0.5)
+flags = list(nrep=0,batch=1,bigmatrix=F,splitBy="disease",nphenos=100, 
+             start = 1,
+             keep="pancreatic",var_thresh = 1.0, var_thresh_y_quantile = 0.5)
+flags[['transform']] = '{"x" :"function(x) x", "exp":"function(x) exp(x)"}'
+
 datasAll = all$get1("Coin","Depmap",flags=flags, reload=T)
 
 
 
 dist1 = all_dist$get("Coin","LCAH","Discovery")
 dist2 = all_dist$get("Coin","LCAH","Validation")
-flags = list(nrep=1, bigmatrix=T, phen_nme="all",all_v_all=T)
-#old_sigs = read_json("~/Data/sAPI/disease_severity_signature_weights.json")
-#genes_incls= unlist(lapply(old_sigs$weights$Sig.1$attributes$dimnames$variables,function(str)strsplit(str,"_")[[1]][1]))[-1]
-#flags[['genes_incls']] =genes_incls
+flags = list(nrep=1, bigmatrix=F, phen_nme="all",all_v_all=T)
+old_sigs = read_json("~/Data/sAPI/disease_severity_signature_weights.json")
+old_sigs = read_json("~/Data/sAPI/disease_class_signature_weights.json")
 
-datasAll=all$get1("Coin","LCAH",flags=flags)
+genes_incls= unlist(lapply(old_sigs$weights$Sig.1$attributes$dimnames$variables,function(str)strsplit(str,"_")[[1]][1]))[-1]
+#flags[['transform']] =toJSON(old_sigs$attributes$normalise)
+flags[['transform']] = '{"x" :"function(x) x", "log":"function(x) log1p(x)"}'
+
+#"ans":"function(x) {x1=(x+3/8); 2*sign(x1)*abs(x1)^(0.5)}",,"bin":"function(x){ x[x>1e6]=1e6; sqrt(1e6)*asin(sqrt(x/1e6))}"}'
+flags[['genes_incls']]=genes_incls
+
+datasAll=all$get1("Coin","LCAH",flags=flags,reload=T)
 #datas2=all$get1("Coin","LCAH","Validation",flags=flags)
 dir="/home/unimelb.edu.au/lcoin/Data/sAPI/Coin/LCAH/LCAH_data"
 dir1="/home/unimelb.edu.au/lcoin/Data/sAPI/Coin/LCAH"
@@ -164,29 +183,39 @@ export = phenos$exportPheno()
 #datasAll=all$get1("Coin","LCAH",flags=flags, reload=T)
 
 ##RUN
+datasAll=all$get1("Coin","LCAH",flags=flags,reload=T)
+
 datasAll$dims()
 user=opts$USER
 
 
-phens = datasAll$pheno(sep_group=F,sep=T)
+phens = datasAll$pheno(sep=T,sep_group=F, exclude="batch")
+phens = phens[5]
+phens$all = phens$all[1:4]
+#phens = phens[grep("binomial.1", names(phens))]
 #grep(bestpheno,unlist(phens))
-#phens = phens[1]
+phens$all = phens$all[1]
+#phens = phens[grep("multiway", names(phens))]
 options("fspls.types"=
           fromJSON('{"gaussian": ["correlation","var","mad"],"binomial":"AUC","multinomial":"AUC","ordinal" : "AUC"}'))
 #phens = phens[1:4]
 flags1 = list(var_quantile = 0.00,# genes_incls =genes_incls,
-              pthresh = 1e-10,max=10, topn=20,nrep=0,batch=1, beam=1, train=names(datasAll$datas)) ## return can be model, vars or eval
-flags1$test=flags1$train
+              pthresh = 1e-5,max=10, topn=20,nrep=10,batch=0, beam=1, train=names(datasAll$datas)[1]) ## return can be model, vars or eval
+flags1[['transform_y']]  = '{"y":"function(y) y","expy" : "function(y) exp(y)"}'
+flags1[['transform_y_inverse']]  = '{"y":"function(y) y","expy" : "function(y) log(y)"}'
+
+#flags1$test=flags1$train
 datasAll$update(flags1)
+#aa = fromJSON('{"rna_star_log.AATBC;rna_star_log.MAFG;rna_star_log.VAV1;rna_star_x.MS4A7;rna_star_log.MPP7;rna_star_log.ATP6V0A1":{"rna_star_log.AATBC":["rna_star_log","AATBC"],"rna_star_log.MAFG":["rna_star_log","MAFG"],"rna_star_log.VAV1":["rna_star_log","VAV1"],"rna_star_x.MS4A7":["rna_star_x","MS4A7"],"rna_star_log.MPP7":["rna_star_log","MPP7"],"rna_star_log.ATP6V0A1":["rna_star_log","ATP6V0A1"]}}')
+#genes_incls = aa
+options("fspls.family"=NULL)
  #vars = datasAll$convert(genes_incls,phens)
-  vars = datasAll$select ( phens, flags1,verbose=F)
-  #if(length(names(vars))==0) return(NULL)
-  varn = lapply(vars$inds, function(v) unlist(lapply(v,names)))
-  full_inds = unlist(lapply(varn, function(v) length(grep("full",v))))>0
-  print(varn[full_inds])
+  vars_all = datasAll$select ( phens, flags1,verbose=F)
+  options("fspls.family"=NULL)
   
-  all_models =datasAll$makeAllModels(vars,phens,flags1)
+  all_models =datasAll$makeAllModels(vars_all,phens,flags1)
   #all_models1 =datasAll$makeAllModels(vars,phens,flags1)
+  
   
   eval0 = datasAll$evaluateAllModels(all_models,phens,flags1)
  # subset(eval0, isfull &cv)
@@ -197,19 +226,29 @@ datasAll$update(flags1)
   eval_cv_full = subset(eval0,isfull & cv & measure=="correlation" ) 
   
   hist(eval_cv_full$mid,br=100)
-  eval_cv = (subset(eval0,cv==T & isfull))
+  eval_cv = (subset(eval0,cv==F & isfull & numvars==2 & measure=="correlation"))
  # which.max(eval_cv_full$mid)
-  eval1 = .calcEval1(eval0)
-  eval1_avg = subset(eval1, cv=="CV= avg" & measure=="correlation")
-#  ggps=.plotEval1(eval1,legend=T, grid="pheno~subpheno", shape_color=c("trainedOn","data","measure"),sep_by="cv_full") #, grid="pheno~cv_full",showranges = F)
+ eval0=subset(eval0, measure=="correlation")
+   eval1 = .calcEval1(eval0,rename=T)
+  #eval1_avg = subset(eval1, cv=="CV= avg" & measure=="correlation")
+   transf = unique(eval0$transform_y); names(transf) = transf
+   ggps = lapply(transf, function(tf){
+     .plotEval1(subset(eval1, transform_y==tf),legend=T, grid="pheno", shape_color=c("trainedOn","data","measure"),showranges=F,
+                  linetype=c("fullmodel","transform_y"),txtsize=0.1,
+                  sep_by=c("cv_full")) #, grid="pheno~cv_full",showranges = F)
+   })
   ggps=.plotEval1(eval1,legend=T, grid="pheno~cv_full", shape_color=c("measure"),sep_by="", showranges=F) #, grid="pheno~cv_full",showranges = F)
-    ggps=.plotEval1(eval1,legend=T, grid="pheno", shape_color=c("measure"),sep_by=c("cv_full"), showranges=F) #, grid="pheno~cv_full",showranges = F)
+    ggps=.plotEval1(eval1,legend=T, grid="subpheno~data", shape_color=c("measure"),sep_by=c("cv_full"), showranges=F) #, grid="pheno~cv_full",showranges = F)
 
-  
+    ggps1=.plotEval1(eval1,legend=T, grid="pheno~subpheno", shape_color=c("data"),sep_by=c("cv_full"), showranges=F) #, grid="pheno~cv_full",showranges = F)
+    
+  plot_grid(ggps1[[1]], ggps1[[2]], ggps1[[3]], ggps1[[4]])  
+  plot_grid(ggps$`CV= FALSE FULL= TRUE`, ggps1$`CV= FALSE FULL= TRUE`,align="v",axis="v")
+    
   ggps
-  out = paste0("plot3_",max(eval1$numvars),".pdf");
+  out = paste0("plot4_",max(eval1$numvars),".pdf");
   pdf(out,width=30,height=30)
-  for(ggp in ggps) print(ggp)
+  for(ggp in ggps1) print(ggp)
   dev.off()
   
   #eval1 = eval1[grep("avg", eval1$cv, inv=T),]
@@ -232,9 +271,15 @@ ggps=.plotEval1(eval3, grid="pheno~cv", rename=T,shape_color="measure", linetype
 ggps
 #ggps=.plotEval1(eval,sep="pheno", grid="data~cv", rename=T,shape_color="subpheno", linetype="fullmodel")
 
-predictions =datasAll$extractPredictions(all_models,phens[1], flags, CV = F);
+predictions0 =datasAll$extractPredictions(all_models,phens, flags, CV = F, liab=F) #, data_nme = names(datasAll$datas)[[2]]);
+predictions1 =datasAll$extractPredictions(all_models,phens, flags, CV = F, liab=T,data_nme = names(datasAll$datas)[[2]]);
 #aa=roc(predictions[[2]]$y, predictions[[2]]$X0)
-.plotArea(predictions, rename=T)
+ggp_pred0=.plotArea1(predictions0, rename=T,max_vars=44)
+ggp_pred0
+
+ggp_pred1=.plotArea1(predictions1, rename=T,max_vars=44)
+ggp_pred1
+#.plotArea(predictions$y$all, rename=T)
 
 
 datasAll$angles(vars,phens,flags)

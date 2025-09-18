@@ -124,15 +124,17 @@ deltas = lapply(dist_all, function(d_all){
   diffs
 })
 
-transform_y =  toJSON(c("function(y) y","function(y) y"))
 #flags1[['transform_y_inverse']]  = '{"expy" : "function(y) log(y)"}'
 flags0 = list(nrep=1, bigmatrix=F, phen_nme=c("post_bypass"),all_v_all=F, max_ordinal=30,merge=T,
               duplicate_ordinal=c("binomial","gaussian"),
               var_thresh_x_quantile=0.5)
 flags0[['transform']] = '{"x" :"function(x) x", "log1p":"function(x) log1p(x)"}'
+#flags0[['transform']] =.getTransformFuncs(c(seq(-1,-0.2,by=0.2),1/seq(1,10), seq(1,2,by=.5)))#  '{"x" :"function(x) x", "log":"function(x) log1p(x)"}'
+
+
 org="Coin"; project="NITRIC"
-old_sigs = read_json("/home/lcoin/disease_severity_signature_weights.json")
-genes_incls1= toJSON(unlist(lapply(old_sigs$weights$Sig.1$attributes$dimnames$variables,function(str)strsplit(str,"_")[[1]][1]))[-1])
+#old_sigs = read_json("/home/lcoin/disease_severity_signature_weights.json")
+#genes_incls1= toJSON(unlist(lapply(old_sigs$weights$Sig.1$attributes$dimnames$variables,function(str)strsplit(str,"_")[[1]][1]))[-1])
 #flags0$genes_incls = genes_incls
 datasAll=all$get1("Coin", "NITRIC", flags=flags0, reload=T)
 print(dimnames(datasAll$datas[[1]]$y$binomial)[[2]])
@@ -156,7 +158,7 @@ p1 = c("death_28day","comp_outcome","vfd","los_picu","picu_lcos_any")
 phens = datasAll$pheno(sep=F)
 i1=unlist(lapply(p1, function(p2)grep(p2,phens$all)))
 fam = unique(names(phens$all)[i1])
-fam = fam[grep("ordinal",fam,inv=T)]  ## remove ordinal
+fam = fam[grep("ordinal",fam,inv=F)]  ## remove ordinal
 phens$all =phens$all[names(phens$all) %in% fam]
 for(j in 1:length(fam)){
   i2=unlist(lapply(p1, function(p2)grep(p2,phens$all[[fam[[j]]]])))
@@ -169,9 +171,9 @@ options("fspls.family"=NULL)
 options("fspls.types"=
           fromJSON('{"gaussian": ["correlation","var","mad","rms"],"binomial":"AUC","multinomial":"AUC","ordinal" : "AUC"}'))
 flags1 = list(
-              quantiles ="[0.01]" , ## remove bottom 10% variable
-              only_all=T,pheno_balance=T,
-              pthresh = 1e-5,max=20, topn=20,nrep=10,batch=0, beam=1, train=names(datasAll$datas)[1]) ## return can be model, vars or eval
+              quantiles ="[0.0]" , ## remove bottom 10% variable
+              only_all=T,pheno_balance=T,reweight=T,
+              pthresh = 1e-5,max=1, topn=20,nrep=1,batch=0, beam=1, train=names(datasAll$datas)[1]) ## return can be model, vars or eval
 flags1$data_types=toJSON(list("all"=names(datasAll$datas[[1]]$data)))
 flags1$data_types = toJSON(list("post"=grep("post",names(datasAll$datas[[1]]$data),v=T)))
 flags1$data_types = toJSON(list("pre"=grep("pre",names(datasAll$datas[[1]]$data),v=T),"all"=names(datasAll$datas[[1]]$data)))
@@ -187,13 +189,14 @@ if(FALSE && !is.null(flags2)){
     if(FALSE) sigDB$updateFlags(flags, flags1) ## updates the flags
 }
 
-
+sigDB = datasAll$getSigDB("combined")
 #datasAll$update(phens1,flags1,  transform_y=c("function(y) y","function(y) y"))
 #sigDB$clear_results(flags1, phens1, transform_y)
 vars_all = datasAll$select ( phens1, flags1,verbose=T, db="combined")
 all_models =datasAll$makeAllModels(vars_all, verbose=T, db="combined")
 eval1 = datasAll$evaluateAllModels(all_models, db="combined")
 
+eval1
 vars_all1 = .extractFullVars(vars_all)
 plots_sep=datasAll$plotData(vars_all1, phens1 = phens1, all_types=F, transform_x = flags0$transform, violin=F, assoc=F)
 plots_sep
@@ -207,9 +210,9 @@ ggps1[[1]]$`CV= FALSE FULL= TRUE`
 all_models1 = .extractFullModels(all_models)
 
 predictions0 =datasAll$extractPredictions(all_models, CV = F, liab=F, data_nme = names(datasAll$datas)[[1]]);
-area_p = .getAreaPlot1(predictions0)
+area_p = .getAreaPlot1(predictions0,families="binomial")
 #aa=roc(predictions[[2]]$y, predictions[[2]]$X0)
-ggp_pred0=.plotArea(area_p, rename=F)
+ggp_pred0=.plotAreaSep(area_p, rename=F,sep="pheno")
 
 ggp_pred0
 all_sig = allEnv$new(dbDir,keys,"sigEnv.R")

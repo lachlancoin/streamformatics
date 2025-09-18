@@ -124,21 +124,25 @@ deltas = lapply(dist_all, function(d_all){
   diffs
 })
 
-transform_y =  toJSON(c("function(y) y","function(y) y"))
 #flags1[['transform_y_inverse']]  = '{"expy" : "function(y) log(y)"}'
-flags0 = list(nrep=1, bigmatrix=F, phen_nme=c("post_bypass"),all_v_all=F, max_ordinal=30,merge=T,
-              duplicate_ordinal=c("binomial","gaussian"),
+flags0 = list(bigmatrix=F, phen_nme=c("post_bypass"),all_v_all=F, max_ordinal=30,merge=T,
+              duplicate_ordinal=c("gaussian"),
+              stop_y="rand",
               var_thresh_x_quantile=0.5)
-flags0[['transform']] = '{"x" :"function(x) x", "log1p":"function(x) log1p(x)"}'
+t_x=getXTransform(c(seq(-1,-0.2,by=0.4),seq(0.2,1.0,by=.4), seq(1.5,2,by=.5)))
+t_x=getXTransform(c(-.2, .2,1.0,1.5))
+
+flags0[['transform']] =toJSON(t_x)#  '{"x" :"function(x) x", "log":"function(x) log1p(x)"}'
+
 org="Coin"; project="NITRIC"
-old_sigs = read_json("/home/lcoin/disease_severity_signature_weights.json")
-genes_incls1= toJSON(unlist(lapply(old_sigs$weights$Sig.1$attributes$dimnames$variables,function(str)strsplit(str,"_")[[1]][1]))[-1])
+#old_sigs = read_json("/home/lcoin/disease_severity_signature_weights.json")
+#genes_incls1= toJSON(unlist(lapply(old_sigs$weights$Sig.1$attributes$dimnames$variables,function(str)strsplit(str,"_")[[1]][1]))[-1])
 #flags0$genes_incls = genes_incls
 datasAll=all$get1("Coin", "NITRIC", flags=flags0, reload=T)
 print(dimnames(datasAll$datas[[1]]$y$binomial)[[2]])
 
 datasAll$dims()
-quantile(datasAll$datas$discovery.all$vars$pre_bypass_x)
+quantile(datasAll$datas$discovery.all$vars[[1]])
 
 
 p1 = "perfusion_xclamp_total"; fam="gaussian"
@@ -156,7 +160,7 @@ p1 = c("death_28day","comp_outcome","vfd","los_picu","picu_lcos_any")
 phens = datasAll$pheno(sep=F)
 i1=unlist(lapply(p1, function(p2)grep(p2,phens$all)))
 fam = unique(names(phens$all)[i1])
-fam = fam[grep("ordinal",fam,inv=T)]  ## remove ordinal
+#fam = fam[grep("ordinal",fam,inv=T)]  ## remove ordinal
 phens$all =phens$all[names(phens$all) %in% fam]
 for(j in 1:length(fam)){
   i2=unlist(lapply(p1, function(p2)grep(p2,phens$all[[fam[[j]]]])))
@@ -165,13 +169,14 @@ for(j in 1:length(fam)){
 }
 phens
 
+transform_y = getYTransform(n_random=1)
 options("fspls.family"=NULL)
 options("fspls.types"=
           fromJSON('{"gaussian": ["correlation","var","mad","rms"],"binomial":"AUC","multinomial":"AUC","ordinal" : "AUC"}'))
 flags1 = list(
               quantiles ="[0.01]" , ## remove bottom 10% variable
-              only_all=T,pheno_balance=T,
-              pthresh = 1e-5,max=20, topn=20,nrep=10,batch=0, beam=1, train=names(datasAll$datas)[1]) ## return can be model, vars or eval
+              only_all=T,pheno_balance=T,stop_y="rand",
+              pthresh = 5e-2,max=20, topn=20,nrep=10,batch=0, beam=1, train=names(datasAll$datas)[1]) ## return can be model, vars or eval
 flags1$data_types=toJSON(list("all"=names(datasAll$datas[[1]]$data)))
 flags1$data_types = toJSON(list("post"=grep("post",names(datasAll$datas[[1]]$data),v=T)))
 flags1$data_types = toJSON(list("pre"=grep("pre",names(datasAll$datas[[1]]$data),v=T),"all"=names(datasAll$datas[[1]]$data)))
@@ -188,9 +193,11 @@ if(FALSE && !is.null(flags2)){
 }
 
 
-#datasAll$update(phens1,flags1,  transform_y=c("function(y) y","function(y) y"))
-#sigDB$clear_results(flags1, phens1, transform_y)
-vars_all = datasAll$select ( phens1, flags1,verbose=T, db="combined")
+
+vars_all = datasAll$select ( phens1, flags1,transform_y = transform_y, verbose=T, db="combined")
+vars_all1 = .extractFullVars(vars_all)
+
+sigDB=datasAll$getSigDB("combined")
 all_models =datasAll$makeAllModels(vars_all, verbose=T, db="combined")
 eval1 = datasAll$evaluateAllModels(all_models, db="combined")
 
@@ -198,7 +205,7 @@ vars_all1 = .extractFullVars(vars_all)
 plots_sep=datasAll$plotData(vars_all1, phens1 = phens1, all_types=F, transform_x = flags0$transform, violin=F, assoc=F)
 plots_sep
 grid1="subpheno"
-ggps1=.plotEval2(eval1,legend=T, grid1="", grid0="measure",linetype="pheno",shape_color=c("pheno","data"),sep_by=c("cv_full"), showranges=T, scales="free",title =names(phens)[1], title1="pheno" ) #, grid="pheno~cv_full",showranges = F)
+ggps1=.plotEval2(eval1,legend=T, grid1="subpheno", grid0="measure",linetype="pheno",shape_color=c("pheno","data"),sep_by=c("cv_full"), showranges=T, scales="free",title =names(phens)[1], title1="pheno" ) #, grid="pheno~cv_full",showranges = F)
 
 ggps1[[1]]$`CV=avg`
 ggps1[[1]]$`CV= FALSE FULL= TRUE`
@@ -207,9 +214,9 @@ ggps1[[1]]$`CV= FALSE FULL= TRUE`
 all_models1 = .extractFullModels(all_models)
 
 predictions0 =datasAll$extractPredictions(all_models, CV = F, liab=F, data_nme = names(datasAll$datas)[[1]]);
-area_p = .getAreaPlot1(predictions0)
+area_p = .getAreaPlot1(predictions0,families="binomial")
 #aa=roc(predictions[[2]]$y, predictions[[2]]$X0)
-ggp_pred0=.plotArea(area_p, rename=F)
+ggp_pred0=.plotArea(area_p, rename=F,)
 
 ggp_pred0
 all_sig = allEnv$new(dbDir,keys,"sigEnv.R")

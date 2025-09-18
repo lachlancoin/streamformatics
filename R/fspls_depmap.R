@@ -50,7 +50,10 @@ dEnv = depmapEnv$new(depmap)
 flags0 = list(nrep=1,batch=0,bigmatrix=F,splitBy="disease",nphenos=10000, 
              start = 1,
              keep="lung",var_thresh_x_quantile = 0.5, var_thresh_y_quantile = 0.5)
-flags0[['transform']] = '{"x" :"function(x) x", "exp":"function(x) exp(x)"}'
+#flags0[['transform']] = '{"x" :"function(x) x", "exp":"function(x) exp(x)"}'
+t_x=getXTransform(c(-.2, .2,1.0,1.5))
+flags0[['transform']] =toJSON(t_x)#  '{"x" :"function(x) x", "log":"function(x) log1p(x)"}'
+
 datasAll = all$get1("Coin","Depmap",flags=flags0, reload=T)
 datasAll$dims()
 
@@ -65,17 +68,21 @@ topphens = c("cyclovalone","LY2334737","astragaloside-a",
 
 #phens = datasAll$pheno(sep=F,sep_group=F)
 phens_all = datasAll$pheno(sep=T)
+phens_all = dEnv$getPhens(datasAll, topphens)
 options("fspls.types"=
           fromJSON('{"gaussian": ["correlation","var","mad","rms"],"binomial":"AUC","multinomial":"AUC","ordinal" : "AUC"}'))
 #phens = phens[1:4]
 flags = list(var_quantile = 0.00,# genes_incls =genes_incls,
               quantiles ="[0.0]" ,
               only_all=T,min=0,max=10,
-              pthresh = 1e-7, topn=20,useglmnet=F,
+              pthresh = 1e-7, topn=20,useglmnet=T,
              nrep=10,batch=0, beam=1, train=names(datasAll$datas)) ## return can be model, vars or eval
-transform_y =  c("function(y) y","function(y) y")
-transform_y =  c("function(y) exp(-y)","function(y) -1*log(y)")
-funcstr = lapply(transform_y,function(x) eval(str2lang(x) ))
+#transform_y =  c("function(y) y","function(y) y")
+#transform_y =  c("function(y) exp(-y)","function(y) -1*log(y)")
+transform_y = getYTransform(pows = c(1),n_random=1)
+
+
+#funcstrs = lapply(transform_y,function(x) eval(str2lang(x) ))
 #transform_y =  c("function(y) exp(y)","function(y) log(y)")
 
 
@@ -97,18 +104,18 @@ for(kk in 1:length(phens_all)){
 
 #f1=sigDB$flags(phens = phens1)
   #sigDB$clear_results(flags, phens1, transform_y) -- this will clear this result from sigDB
-    vars_all2 = datasAll$select ( phens1, flags,transform_y=transform_y,verbose=F,db="combined",user=user)
+    vars_all = datasAll$select ( phens1, flags,transform_y=transform_y,verbose=F,db="combined",user=user)
     #vars_all21 = .extractFullVars(vars_all2)
     #if(length(vars_all1$variables)==0) next;
     all_models =datasAll$makeAllModels(vars_all,verbose=F, db="combined",user=user)
     eval1 = datasAll$evaluateAllModels(all_models,db="combined",user=user)
-    
-    if(!is.null(eval1) && FALSE){
+    print(vars_all$variables)
+    if(!is.null(eval1)){
      ggps1=.plotEval2(eval1,legend=T, grid1="", grid0="measure",linetype="pheno",shape_color=c("pheno","data"),sep_by=c("cv_full"), showranges=T, scales="free",title =title, title1="pheno" ) #, grid="pheno~cv_full",showranges = F)
 #    ggps1[[1]]$`CV= FALSE FULL= TRUE`
       print(ggps1[[1]]$`CV=avg`)    
-      ggps1[[1]]$`CV= FALSE FULL= TRUE`
-      ggps1[[1]]$`CV= FALSE FULL= TRUE`
+      #ggps1[[1]]$`CV= FALSE FULL= TRUE`
+      #ggps1[[1]]$`CV= FALSE FULL= TRUE`
     }
     
    

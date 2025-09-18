@@ -36,6 +36,7 @@ user = opts$USER
 #depmap="/home/unimelb.edu.au/lcoin/Data/Depmap"
 depmap="/data/gpfs/projects/punim1140/telsabeh/data_clean/data/depmap_data_primary"
 
+depmap="/home/unimelb.edu.au/lcoin/Data/Depmap"
 dEnv = depmapEnv$new(depmap)
 
 ##UPLOAD DATA ONLY DO ONCE
@@ -49,13 +50,17 @@ dEnv = depmapEnv$new(depmap)
   
 flags0 = list(nrep=1,batch=0,bigmatrix=F,splitBy="disease",nphenos=10000, 
              start = 1,
-             keep="lung",var_thresh_x_quantile = 0.5, var_thresh_y_quantile = 0.5)
-#flags0[['transform']] = '{"x" :"function(x) x", "exp":"function(x) exp(x)"}'
-t_x=getXTransform(c(-.2, .2,1.0,1.5))
-flags0[['transform']] =toJSON(t_x)#  '{"x" :"function(x) x", "log":"function(x) log1p(x)"}'
-
+             keep="pancreatic",var_thresh_x_quantile = 0.5, var_thresh_y_quantile = 0.5)
+flags0[['transform']] = '{"x" :"function(x) x", "exp":"function(x) exp(x)"}'
+#flags0$transform=toJSON(getXTransform(c(-.5,.5,1.0,1.5)))
 datasAll = all$get1("Coin","Depmap",flags=flags0, reload=T)
-datasAll$dims()
+
+y1 = (datasAll$datas[[1]]$y[[1]])
+di = dist(t(y1))
+hc = hclust(di)
+memb <- cutree(hc, k = 1000)
+#aa=cor(as.matrix(y1[,which(memb==2)]), use="pairwise.complete.obs")
+#hist(aa[,1])
 
 topphens = c("cyclovalone","LY2334737","astragaloside-a",
 "10-hydroxycamptothecin","orotic-acid",
@@ -67,22 +72,22 @@ topphens = c("cyclovalone","LY2334737","astragaloside-a",
 )
 
 #phens = datasAll$pheno(sep=F,sep_group=F)
-phens_all = datasAll$pheno(sep=T)
-phens_all = dEnv$getPhens(datasAll, topphens)
+#phens_all = datasAll$pheno(sep=T)
+#phens_all = dEnv$getPhens(datasAll, topphens)
+phens_all = datasAll$pheno(sep=F, memb=memb)
+phens_all = dEnv$getPhens(datasAll, topphens,sep=F)
 options("fspls.types"=
           fromJSON('{"gaussian": ["correlation","var","mad","rms"],"binomial":"AUC","multinomial":"AUC","ordinal" : "AUC"}'))
 #phens = phens[1:4]
 flags = list(var_quantile = 0.00,# genes_incls =genes_incls,
               quantiles ="[0.0]" ,
               only_all=T,min=0,max=10,
-              pthresh = 1e-7, topn=20,useglmnet=T,
+              pthresh = 1e-6, topn=20,useglm=T,stop_y="rand",
              nrep=10,batch=0, beam=1, train=names(datasAll$datas)) ## return can be model, vars or eval
-#transform_y =  c("function(y) y","function(y) y")
-#transform_y =  c("function(y) exp(-y)","function(y) -1*log(y)")
-transform_y = getYTransform(pows = c(1),n_random=1)
-
-
-#funcstrs = lapply(transform_y,function(x) eval(str2lang(x) ))
+transform_y =  c("function(y) y","function(y) y")
+transform_y =  c("function(y) exp(-y)","function(y) -1*log(y)")
+transform_y = getYTransform(1,n_random = 1, incl = list(exp=c(c("function(y) exp(-y)","function(y) -1*log(y)"))))
+#funcstr = lapply(transform_y,function(x) eval(str2lang(x) ))
 #transform_y =  c("function(y) exp(y)","function(y) log(y)")
 
 
@@ -96,6 +101,7 @@ sigDB = datasAll$getSigDB("combined", user=user)
 #names(area_p) =unlist( lapply(phens_all, function(p1) names(p1[[1]])))
 #names(plots) = names(area_p)
 #sigDB$clear_all_user(user);  #dangerous  ..clears everything
+
 for(kk in 1:length(phens_all)){
   print(paste(kk,"of", length(phens_all)))
   phens1 = phens_all[[kk]];phens = phens1
@@ -107,18 +113,27 @@ for(kk in 1:length(phens_all)){
     vars_all = datasAll$select ( phens1, flags,transform_y=transform_y,verbose=F,db="combined",user=user)
     #vars_all21 = .extractFullVars(vars_all2)
     #if(length(vars_all1$variables)==0) next;
-    all_models =datasAll$makeAllModels(vars_all,verbose=F, db="combined",user=user)
+    all_models =datasAll$makeAllModels(vars_all2,verbose=F, db="combined",user=user)
     eval1 = datasAll$evaluateAllModels(all_models,db="combined",user=user)
-    print(vars_all$variables)
-    if(!is.null(eval1)){
-     ggps1=.plotEval2(eval1,legend=T, grid1="", grid0="measure",linetype="pheno",shape_color=c("pheno","data"),sep_by=c("cv_full"), showranges=T, scales="free",title =title, title1="pheno" ) #, grid="pheno~cv_full",showranges = F)
+    if(!is.null(eval1) && FALSE){
+      ev3=.takeAvg(eval1)
+     ggps1=.plotEval2(ev3,legend=F, grid1="", grid0="measure",linetype="pheno",
+                     shape_color=c("pheno","data"),sep_by=c("cv_full"), showranges=F, scales="free",title =title, title1="pheno" ) #, grid="pheno~cv_full",showranges = F)
 #    ggps1[[1]]$`CV= FALSE FULL= TRUE`
       print(ggps1[[1]]$`CV=avg`)    
-      #ggps1[[1]]$`CV= FALSE FULL= TRUE`
-      #ggps1[[1]]$`CV= FALSE FULL= TRUE`
+      ggps1[[1]]$`CV= FALSE FULL= TRUE`
     }
     
-   
+    predictions_CV =datasAll$extractPredictions(all_models, CV = T, liab=F, data_nme = names(datasAll$datas)[[1]]);
+    predictions =datasAll$extractPredictions(all_models, CV = F, liab=F, data_nme = names(datasAll$datas)[[1]]);
+    
+    area_p = .getAreaPlot1(predictions, families="gaussian") %>% tibble::add_column(CV="No CV", liab=F)
+    if(length(predictions_CV)>0){
+      area_CV = .getAreaPlot1(predictions_CV, families="gaussian") %>% tibble::add_column(CV="Leave-one-out CV", liab=F)
+      area_p = rbind(area_CV, area_p)
+    }
+    .compareCorrelation(area_p)
+    
   
     #aa=roc(predictions[[2]]$y, predictions[[2]]$X0)
    
@@ -160,11 +175,19 @@ for(kk in 1:length(phens_all)){
       area_CV = .getAreaPlot1(predictions_CV, families="gaussian") %>% tibble::add_column(CV="Leave-one-out CV", liab=F)
       area_p = rbind(area_CV, area_p)
     }
+    .compareCorrelation(area_p,max_vars=10)
   
    # area_p$pheno = title
     area_p_l[[kk]] = area_p
     if(FALSE){
-      ggp_pred0=.plotArea(area_p, rename=F,grid="CV~lens", CV=T,addText=T, scales="fixed", max_vars=3,r2=T)
+      
+      
+      area_p_max = data.frame(.takeMax1(area_p1, max_vars=3))
+      area_p_max0 = data.frame(.takeMax1(area_p1, max_vars=0))
+      #area_p_max$CV
+      ggp_pred0=.plotArea(area_p_max0, rename=F,
+                          arrange_by_sample=T,takeMax = T,
+                          grid="pheno~sample", CV=F,addText=F, scales="fixed", max_vars=3,r2=T)
       ggp_pred0<-ggp_pred0+xlab("Observed viability")+ylab("Predicted viability")+ theme(legend.position = legend_position,legend.title = element_text(size = txtsize))+ggtitle(title)
       print(ggp_pred0)
       filename=paste(title,"pdf",sep=".")

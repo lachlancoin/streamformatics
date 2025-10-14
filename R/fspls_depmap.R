@@ -36,7 +36,7 @@ user = opts$USER
 #depmap="/home/unimelb.edu.au/lcoin/Data/Depmap"
 depmap="/data/gpfs/projects/punim1140/telsabeh/data_clean/data/depmap_data_primary"
 
-depmap="/home/unimelb.edu.au/lcoin/Data/Depmap"
+#depmap="/home/unimelb.edu.au/lcoin/Data/Depmap"
 dEnv = depmapEnv$new(depmap)
 
 ##UPLOAD DATA ONLY DO ONCE
@@ -51,9 +51,15 @@ dEnv = depmapEnv$new(depmap)
 flags0 = list(nrep=1,batch=0,bigmatrix=F,splitBy="disease",nphenos=10000, 
              start = 1,
              keep="pancreatic",var_thresh_x_quantile = 0.5, var_thresh_y_quantile = 0.5)
-flags0[['transform']] = '{"x" :"function(x) x", "exp":"function(x) exp(x)"}'
+flags0$transform_y=toJSON(getYTransform(pow = pows, offset=0.1, norm=1000, n_random=10))
+#flags0[['transform']] = '{"x" :"function(x) x", "exp":"function(x) exp(x)"}'
 #flags0$transform=toJSON(getXTransform(c(-.5,.5,1.0,1.5)))
 datasAll = all$get1("Coin","Depmap",flags=flags0, reload=T)
+
+pows = seq(0.2,2.2,by=.4)
+#pows = 1
+
+datasAll$updateTransforms(toJSON(transform_y))
 
 y1 = (datasAll$datas[[1]]$y[[1]])
 di = dist(t(y1))
@@ -75,33 +81,26 @@ topphens = c("cyclovalone","LY2334737","astragaloside-a",
 #phens_all = datasAll$pheno(sep=T)
 #phens_all = dEnv$getPhens(datasAll, topphens)
 phens_all = datasAll$pheno(sep=F, memb=memb)
-phens_all = dEnv$getPhens(datasAll, topphens,sep=F)
+phens_all = dEnv$getPhens(datasAll, topphens,sep=T)
 options("fspls.types"=
           fromJSON('{"gaussian": ["correlation","var","mad","rms"],"binomial":"AUC","multinomial":"AUC","ordinal" : "AUC"}'))
 #phens = phens[1:4]
 flags = list(var_quantile = 0.00,# genes_incls =genes_incls,
               quantiles ="[0.0]" ,
               only_all=T,min=0,max=10,
-              pthresh = 1e-6, topn=20,useglm=T,stop_y="rand",
+              pthresh = 1e-6, topn=20,useglmnet=T,stop_y="rand",
              nrep=10,batch=0, beam=1, train=names(datasAll$datas)) ## return can be model, vars or eval
-transform_y =  c("function(y) y","function(y) y")
-transform_y =  c("function(y) exp(-y)","function(y) -1*log(y)")
-transform_y = getYTransform(1,n_random = 1, incl = list(exp=c(c("function(y) exp(-y)","function(y) -1*log(y)"))))
-#funcstr = lapply(transform_y,function(x) eval(str2lang(x) ))
-#transform_y =  c("function(y) exp(y)","function(y) log(y)")
-
-
-#options("fspls.family"=NULL)
  #vars = datasAll$convert(genes_incls,phens)
 vars_all1 = list(); all_models1 = list(); eval01= list(); ggps_l=list()
 sigDB = datasAll$getSigDB("combined", user=user)
-
+#sigDB$drop_all()
 #area_p_l = vector(mode = "list", length = length(phens_all));
 #plots = vector(mode = "list", length = length(phens_all));
 #names(area_p) =unlist( lapply(phens_all, function(p1) names(p1[[1]])))
 #names(plots) = names(area_p)
 #sigDB$clear_all_user(user);  #dangerous  ..clears everything
-
+ggps1= list()
+evals_all = list()
 for(kk in 1:length(phens_all)){
   print(paste(kk,"of", length(phens_all)))
   phens1 = phens_all[[kk]];phens = phens1
@@ -110,20 +109,35 @@ for(kk in 1:length(phens_all)){
 
 #f1=sigDB$flags(phens = phens1)
   #sigDB$clear_results(flags, phens1, transform_y) -- this will clear this result from sigDB
-    vars_all = datasAll$select ( phens1, flags,transform_y=transform_y,verbose=F,db="combined",user=user)
-    #vars_all21 = .extractFullVars(vars_all2)
+    vars_all = datasAll$select ( phens1, flags,verbose=F,db="combined",user=user)
+    vars_all21 = .extractFullVars(vars_all)
+    
+    if(length(vars_all21$variables)==0) next;
     #if(length(vars_all1$variables)==0) next;
-    all_models =datasAll$makeAllModels(vars_all2,verbose=F, db="combined",user=user)
+    all_models =datasAll$makeAllModels(vars_all,flags=flags,verbose=F, db="combined",user=user)
     eval1 = datasAll$evaluateAllModels(all_models,db="combined",user=user)
+    evals_all[[title]]=eval1
+    ggps=.plotEval1(eval1,legend=T, grid1=c("subpheno","pheno"), grid0="measure",
+                     shape_color=c("cv_full"),
+                    sep_by=c("data"),
+                    showranges=T,linetype="cv_full",
+                     scales="free",title =names(phens)[1], title1=names(phens1[[1]]))
+    
+    ggps1[[names(phens1[[1]])]]=ggps
+    
     if(!is.null(eval1) && FALSE){
-      ev3=.takeAvg(eval1)
-     ggps1=.plotEval2(ev3,legend=F, grid1="", grid0="measure",linetype="pheno",
-                     shape_color=c("pheno","data"),sep_by=c("cv_full"), showranges=F, scales="free",title =title, title1="pheno" ) #, grid="pheno~cv_full",showranges = F)
+#      ev3=.takeAvg(eval1)
+      
+      
+     ggps1=.plotEval2(eval1,legend=F, grid1="", grid0="measure",linetype="cv_full",
+                     shape_color=c("pheno","data"),
+                     #sep_by=c("cv_full"),
+                     showranges=F, scales="free",title =title, title1="pheno" ) #, grid="pheno~cv_full",showranges = F)
 #    ggps1[[1]]$`CV= FALSE FULL= TRUE`
       print(ggps1[[1]]$`CV=avg`)    
       ggps1[[1]]$`CV= FALSE FULL= TRUE`
     }
-    
+    if(FALSE){
     predictions_CV =datasAll$extractPredictions(all_models, CV = T, liab=F, data_nme = names(datasAll$datas)[[1]]);
     predictions =datasAll$extractPredictions(all_models, CV = F, liab=F, data_nme = names(datasAll$datas)[[1]]);
     
@@ -133,12 +147,15 @@ for(kk in 1:length(phens_all)){
       area_p = rbind(area_CV, area_p)
     }
     .compareCorrelation(area_p)
-    
+}
   
     #aa=roc(predictions[[2]]$y, predictions[[2]]$X0)
    
  
 }
+ggps1$`astragaloside-a`
+
+lapply(ggps1,length)
 
 ## find goo results
 evals=sigDB$evals(flags=flags,transform_y = transform_y)

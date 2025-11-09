@@ -1,4 +1,6 @@
 
+
+
 setOptions<-function(config){
   if(!file.exists(config))stop("need config file specifying USER,PASS and KEY")
   config = t(read.csv(config,sep="=",header=F))
@@ -8,6 +10,18 @@ setOptions<-function(config){
   config1 = config1[!duplicated(names(config1))]
   options(config1)
   config1
+}
+
+.plotAll<-function(evals_all, max_len =16){
+  range = seq(max(1, length(evals_all)-max_len) ,length(evals_all))
+  evals2=.merge1_new(evals_all[range])
+  evals2$pheno=dEnv$convertFromCode(evals2$pheno)
+  ggps=.plotEval1(evals2,legend=T, grid0=c("pheno"), grid1=NULL, #"measure",
+                  shape_color=c("cv_full"),
+                  sep_by=c("data", "measure"),
+                  showranges=T,linetype="cv_full",
+                  scales="free",title =names(phens)[1], title1=names(phens1[[1]]))
+  ggps
 }
 
 opts = setOptions("~/.sfx")
@@ -25,6 +39,21 @@ library(readr); library(cowplot); library(ggrepel)
 if(is.null(opts$USER) || is.null(opts$PASS) || is.null(opts$URL)) stop("!!")
 
 setwd(paste0(github,"/streamformatics/R"))
+
+
+args = as.numeric(commandArgs(trailingOnly=TRUE))
+if(length(args)==0){
+  start = 1; end = 5000
+}else{
+  print(args)
+  step = args[2]; 
+  start = args[1]*step; end = start + step -1; 
+}
+dir.create("results")
+rds_out =paste("results", paste("temp_depmap",start,end,"rds",sep="."),sep="/")
+
+
+
 source("libs.R")
 opts = setOptions("~/.sfx")
 dbDir = opts$dbDir
@@ -34,6 +63,7 @@ uploadData=F
 user = opts$USER
 
 #depmap="/home/unimelb.edu.au/lcoin/Data/Depmap"
+
 depmap="/data/gpfs/projects/punim1140/telsabeh/data_clean/data/depmap_data_primary"
 
 #depmap="/home/unimelb.edu.au/lcoin/Data/Depmap"
@@ -47,84 +77,126 @@ dEnv = depmapEnv$new(depmap)
 #  dEnv$importData(dist1)
  # dEnv$importPheno(dist1)
 #}
-  
+pows = seq(0.2,3,by=.4)
+exp_y = c()  # c(0.5,1.5,2.0, 2.5,3.0)
+exp_x = c()
+
+
 flags0 = list(nrep=1,batch=0,bigmatrix=F,splitBy="disease",nphenos=10000, 
              start = 1,
              keep="pancreatic",var_thresh_x_quantile = 0.5, var_thresh_y_quantile = 0.5)
-flags0$transform_y=toJSON(getYTransform(pow = pows, offset=0.1, norm=1000, n_random=10))
+
+transform_y = getYTransform(pow = pows, offset=0.1, norm=1000, n_random=20, CHECK=T)
+flags0$transform_y=toJSON(transform_y)
 #flags0[['transform']] = '{"x" :"function(x) x", "exp":"function(x) exp(x)"}'
 #flags0$transform=toJSON(getXTransform(c(-.5,.5,1.0,1.5)))
-datasAll = all$get1("Coin","Depmap",flags=flags0, reload=T)
+if(file.exists(rds_out)){
+  rds1 = readRDS(rds_out)
+}else{
+rds1=readRDS("temp_depmap1.rds")
+}
+if(!is.null(rds1)) flags0=rds1$flags0
 
-pows = seq(0.2,2.2,by=.4)
+datasAll = all$get1("Coin","Depmap",flags=flags0, reload=T)
+#sigDB = datasAll$getSigDB(db, user=user)
+#data_flags = sigDB$get_data_flags()
+#flags0 = fromJSON(data_flags$flags[[1]])
+##reload
+#datasAll = all$get1("Coin","Depmap",flags=flags0, reload=T)
+
+#datasAll$updateTransforms(flags0$transform_y)
 #pows = 1
 
-datasAll$updateTransforms(toJSON(transform_y))
 
-y1 = (datasAll$datas[[1]]$y[[1]])
-di = dist(t(y1))
-hc = hclust(di)
-memb <- cutree(hc, k = 1000)
-#aa=cor(as.matrix(y1[,which(memb==2)]), use="pairwise.complete.obs")
-#hist(aa[,1])
-
-topphens = c("cyclovalone","LY2334737","astragaloside-a",
-"10-hydroxycamptothecin","orotic-acid",
-"maltobionic-acid","talmapimod","cyclopenthiazide",
-"indirubin-3-monoxime","indoprofen","chlorhexidine",
-"piromidic-acid","oleanolic-acid","epinephrine",
-"homoquinolinic-acid","tipranavir","lidocaine","cyt387",
-"GW-788388","midafotel"
-)
-
-#phens = datasAll$pheno(sep=F,sep_group=F)
+phens_all = datasAll$pheno(sep=T,sep_group=F)
 #phens_all = datasAll$pheno(sep=T)
 #phens_all = dEnv$getPhens(datasAll, topphens)
-phens_all = datasAll$pheno(sep=F, memb=memb)
-phens_all = dEnv$getPhens(datasAll, topphens,sep=T)
+#phens_all = datasAll$pheno(sep=F, memb=memb)
+#phens_all = dEnv$getPhens(datasAll, topphens,sep=T)
 options("fspls.types"=
           fromJSON('{"gaussian": ["correlation","var","mad","rms"],"binomial":"AUC","multinomial":"AUC","ordinal" : "AUC"}'))
 #phens = phens[1:4]
 flags = list(var_quantile = 0.00,# genes_incls =genes_incls,
               quantiles ="[0.0]" ,
               only_all=T,min=0,max=10,
-              pthresh = 1e-6, topn=20,useglmnet=T,stop_y="rand",
-             nrep=10,batch=0, beam=1, train=names(datasAll$datas)) ## return can be model, vars or eval
+              pthresh = 0.05, topn=20,useglmnet=T,stop_y="rand",
+             nrep=0,batch=1, beam=1, train=names(datasAll$datas)) ## return can be model, vars or eval
  #vars = datasAll$convert(genes_incls,phens)
+if(!is.null(rds1$flags)) flags = rds1$flags
 vars_all1 = list(); all_models1 = list(); eval01= list(); ggps_l=list()
-sigDB = datasAll$getSigDB("combined", user=user)
+
+
 #sigDB$drop_all()
 #area_p_l = vector(mode = "list", length = length(phens_all));
 #plots = vector(mode = "list", length = length(phens_all));
 #names(area_p) =unlist( lapply(phens_all, function(p1) names(p1[[1]])))
 #names(plots) = names(area_p)
 #sigDB$clear_all_user(user);  #dangerous  ..clears everything
-ggps1= list()
+#rds1 = readRDS("temp_depmap1.rds")
+rds = rds1
+if(!is.null(rds1) && file.exists(rds_out)){
+ evals_all = rds$evals_all
+ area_p_l = rds$area_p_l
+ #start = rds$kk
+}else{
+#  start = 1
 evals_all = list()
-for(kk in 1:length(phens_all)){
+area_p_l = list()
+}
+db=paste("combined",start,sep=".")
+#saveRDS(list(flags0=flags0, phens_all = phens_all, flags = flags),"flags.rds")
+for(kk in start:min(end,length(phens_all))){
   print(paste(kk,"of", length(phens_all)))
+ 
   phens1 = phens_all[[kk]];phens = phens1
   print(phens1);
-  title = names(phens1$gaussian)
+  title = phens1$gaussian[[1]]
+  title = dEnv$convertFromCode(title)
+if(!is.null(area_p_l[[title]])){
+  print(paste("done",title)); next;
+}else{
+  print(paste("doing",title))
+  
+}
 
 #f1=sigDB$flags(phens = phens1)
   #sigDB$clear_results(flags, phens1, transform_y) -- this will clear this result from sigDB
-    vars_all = datasAll$select ( phens1, flags,verbose=F,db="combined",user=user)
+flags$nrep=1; flags$batch=0
+flags$max=10
+#sigDB$experiments(all_cols=T)
+    vars_all = datasAll$select ( phens1, flags,verbose=F,db=db,user=user)
     vars_all21 = .extractFullVars(vars_all)
     
-    if(length(vars_all21$variables)==0) next;
+    if(length(vars_all21$variables)==0){
+      print(paste("FOUND NOTHING", title,kk))
+      next;
+    }
+    print(vars_all21$variables)
+#    print(names(vars_al21$variables))
+    flags$max = length(vars_all21$variables[[1]])
+    flags$nrep=0; flags$batch=1
+    vars_all = datasAll$select ( phens1, flags,verbose=F,db=db,user=user)
+    
     #if(length(vars_all1$variables)==0) next;
-    all_models =datasAll$makeAllModels(vars_all,flags=flags,verbose=F, db="combined",user=user)
-    eval1 = datasAll$evaluateAllModels(all_models,db="combined",user=user)
+    all_models =datasAll$makeAllModels(vars_all,flags=flags,verbose=F, db=NULL,user=user)
+    eval1 = datasAll$evaluateAllModels(all_models,db=db,user=user)
     evals_all[[title]]=eval1
-    ggps=.plotEval1(eval1,legend=T, grid1=c("subpheno","pheno"), grid0="measure",
-                     shape_color=c("cv_full"),
-                    sep_by=c("data"),
-                    showranges=T,linetype="cv_full",
-                     scales="free",title =names(phens)[1], title1=names(phens1[[1]]))
-    
-    ggps1[[names(phens1[[1]])]]=ggps
-    
+ #   ggps=.plotAll(evals_all, 36)
+#    print(ggps[[1]])
+    if(kk %% 10 ==0){
+      print(paste("SAVING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",kk))
+    rds = list(evals_all = evals_all, area_p_l = area_p_l, kk=kk,    flags=flags, flags0=flags0)
+    saveRDS(rds, rds_out)
+    }
+    if(FALSE){
+      ggps=.plotEval1(eval1,legend=T, grid1=c("subpheno","pheno"), grid0="measure",
+                       shape_color=c("cv_full"),
+                      sep_by=c("data"),
+                      showranges=T,linetype="cv_full",
+                       scales="free",title =names(phens)[1], title1=title)
+      ggps1[[title]]=ggps[[1]]
+      print(ggps[[1]])
+    }
     if(!is.null(eval1) && FALSE){
 #      ev3=.takeAvg(eval1)
       
@@ -137,135 +209,30 @@ for(kk in 1:length(phens_all)){
       print(ggps1[[1]]$`CV=avg`)    
       ggps1[[1]]$`CV= FALSE FULL= TRUE`
     }
-    if(FALSE){
+    if(TRUE){
     predictions_CV =datasAll$extractPredictions(all_models, CV = T, liab=F, data_nme = names(datasAll$datas)[[1]]);
     predictions =datasAll$extractPredictions(all_models, CV = F, liab=F, data_nme = names(datasAll$datas)[[1]]);
     
     area_p = .getAreaPlot1(predictions, families="gaussian") %>% tibble::add_column(CV="No CV", liab=F)
+    
     if(length(predictions_CV)>0){
       area_CV = .getAreaPlot1(predictions_CV, families="gaussian") %>% tibble::add_column(CV="Leave-one-out CV", liab=F)
       area_p = rbind(area_CV, area_p)
     }
-    .compareCorrelation(area_p)
+    if(FALSE){
+      area_p$CV = factor(area_p$CV);area_p$lens = factor(area_p$lens)
+      ggplot(area_p, aes_string(x="knots", y="value", color="lens"))+geom_point()+facet_grid("CV~lens")
+    }
+    area_p_l[[title]] = area_p
+    #.compareCorrelation(area_p)
 }
   
     #aa=roc(predictions[[2]]$y, predictions[[2]]$X0)
    
  
 }
-ggps1$`astragaloside-a`
 
-lapply(ggps1,length)
+rds = list(evals_all = evals_all, area_p_l = area_p_l, kk=kk,    flags=flags, flags0=flags0)
+saveRDS(rds, rds_out)
 
-## find goo results
-evals=sigDB$evals(flags=flags,transform_y = transform_y)
-evals1 = subset(evals, measure=="correlation")
-evals2 = subset(evals1, cv_full=="CV=avg")
-evals3 = subset(evals2,nsamps>5 & numvars>4 )
-hist(evals3$mid)
-evals4 = subset(evals3, mid>0.5)
-topphens=dEnv$convertFromCode( unique(evals4$pheno))
-match(evals4$pheno, unlist(phens_all))
-
-
-print(topphens)
-##
-area_p_l = vector(mode = "list", length = length(phens_all));
-phens_all_r = dEnv$getPhens(datasAll,topphens,sep=T)
-## get sample correlation
-for(kk in 1:length(phens_all)){
-    print(paste(kk,"of", length(phens_all)))
-    phens1 = phens_all[[kk]];phens = phens1
-    print(phens1);
-    
-#    sigDB$evals(flags=flags, phens = phens1);
- #   mods=sigDB$loadModels(flags=flags, phens = phens1, transform_y = transform_y)
-    
-  #  vars_all = datasAll$select ( phens1, flags,transform_y=transform_y,verbose=F,db="combined",user=user)
-    all_models =datasAll$makeAllModels(NULL, phens = phens1, flags = flags, transform_y = transform_y, verbose=F, db="combined",user=user)
-    if(length(all_models$models)==0) next; ## just use phenotypes where we learned a model
-    predictions_CV =datasAll$extractPredictions(all_models, CV = T, liab=F, data_nme = names(datasAll$datas)[[1]]);
-    predictions =datasAll$extractPredictions(all_models, CV = F, liab=F, data_nme = names(datasAll$datas)[[1]]);
-    
-    area_p = .getAreaPlot1(predictions, families="gaussian") %>% tibble::add_column(CV="No CV", liab=F)
-    if(length(predictions_CV)>0){
-      area_CV = .getAreaPlot1(predictions_CV, families="gaussian") %>% tibble::add_column(CV="Leave-one-out CV", liab=F)
-      area_p = rbind(area_CV, area_p)
-    }
-    .compareCorrelation(area_p,max_vars=10)
-  
-   # area_p$pheno = title
-    area_p_l[[kk]] = area_p
-    if(FALSE){
-      
-      
-      area_p_max = data.frame(.takeMax1(area_p1, max_vars=3))
-      area_p_max0 = data.frame(.takeMax1(area_p1, max_vars=0))
-      #area_p_max$CV
-      ggp_pred0=.plotArea(area_p_max0, rename=F,
-                          arrange_by_sample=T,takeMax = T,
-                          grid="pheno~sample", CV=F,addText=F, scales="fixed", max_vars=3,r2=T)
-      ggp_pred0<-ggp_pred0+xlab("Observed viability")+ylab("Predicted viability")+ theme(legend.position = legend_position,legend.title = element_text(size = txtsize))+ggtitle(title)
-      print(ggp_pred0)
-      filename=paste(title,"pdf",sep=".")
-      ggsave(filename, ggp_pred0)
-      plots[[kk]] = ggp_pred0
-    }
-}
-area_p_l = area_p_l[unlist(lapply(area_p_l, length))>0]
-names(area_p_l) = dEnv$convertFromCode(unlist(phens_all))
-area_p_l_max =.merge1_new( lapply(area_p_l, .takeMax1, max_vars=100),addName="drug")
-area_p_l_base =.merge1_new( lapply(area_p_l, .takeMax1, max_vars=0),addName="drug")
-area_p_l_max$pheno = area_p_l_max$drug
-area_p_l_base$pheno = area_p_l_base$drug
-#rdsf=readRDS("area_p_l.rds"); area_p_l = rdsf$area_p_l; area_p_l_max = rdsf$area_p_l_max
-#saveRDS(list(area_p_l=area_p_l, area_p_l_max=area_p_l_max, area_p_l_base=area_p_l_base), file="area_p_l.rds")
-print(dim(area_p_l_max))
-print(dim(area_p_l_base))
-inds2 =which(area_p_l_max$lens>0)
-area_p_l_max = area_p_l_max[inds2,,drop=F]
-area_p_l_base = area_p_l_base[inds2,,drop=F]
-#print(dim(area_p))
-#area_p = .merge1_new(area_p_l, addName="pheno")
-#area_p$pheno = factor(area_p$pheno)
-#area_p$CV = factor(area_p$CV, levels = rev(unique(area_p$CV)))
-#area_p0=area_p
-legend_position="bottom"; txtsize=1;
-options("ggrepel.max.overlaps"=1000)
-max_vars = 10; max_samps=9; maxphens=5000
-area_lens = list("base"=area_p_l_base,"fitted"=area_p_l_max)
-nme_lens = names(area_lens); names(nme_lens)=nme_lens
-nmel1 = nme_lens[[1]]
-phens_list = names(area_p_l)
-cv_l = unique(area_p_l2$CV); names(cv_l) = cv_l
-cv_l1 = cv_l[[1]]
-funcstr1 = eval(str2lang(transform_y[2]))
-ggp_preds=lapply(cv_l, function(cv_l1){
-plots2 = lapply(nme_lens, function(nmel1){
-  area_p_l2 = area_lens[[nmel1]]
- 
-    area_p0 = subset(area_p_l2, CV==cv_l1 )
-    area_p0$value= funcstr1(area_p0$value)
-    title = paste(cv_l1, nmel1)
-    print(title)
-    print(cor(area_p0[,1:2],use="pairwise.complete.obs"))
-    print(calcRMS(area_p0$knots, area_p0$value))
-    print(calcVar(area_p0$knots, area_p0$value))
-    dim(area_p0)
-   # area_p0 = subset(area_p0, pheno %in% topphens)
-  #  dim(area_p0)
-  ggp_pred0=.plotArea(area_p0, arrange_by_sample=T,rename=F,grid="sample",, CV=T,addText=T,maxphens = maxphens,takeMax=F,showText=F,reorder=T,
-                      code_len=3,shapes=F, scales="fixed", max_vars=max_vars, max_samps = max_samps,r2=T,p=c(0.01,0.99))
-  ggp_pred0+xlab("Observed viability")+ylab("Predicted viability")+ theme(strip.text = element_text(size = 10),legend.position = legend_position,legend.title = element_text(size = txtsize))+ggtitle(title)
-})
-ggp1 = plot_grid(plots2[[1]], plots2[[2]])
-filename=paste("combined_sample_plot",max_vars,max_samps, maxphens,cv_l1, "pdf",sep=".")
-ggsave(filename, ggp1,  width=100, height=200, units="cm",limitsize=F)
-})
-#print(ggp_preds$`No CV`)
-
-    
-
-
-
-
+print("finished")

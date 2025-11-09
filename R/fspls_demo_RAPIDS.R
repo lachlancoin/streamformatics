@@ -39,21 +39,27 @@ keys$makeDB("lcoin","Coin","LCAH","Discovery")
 
 dist1 = all_dist$get("Coin","LCAH","Discovery")
 dist2 = all_dist$get("Coin","LCAH","Validation")
-flags0 = list(nrep=1, bigmatrix=F, phen_nme="all",all_v_all=T,merge=T) #"gn"
+flags0 = list(nrep=1, bigmatrix=T, phen_nme="all",all_v_all=T,merge=T, 
+              duplicate_ordinal=c("gaussian"),
+              var_thresh_x_quantile=0.5) #"gn"
 old_sigs = read_json("~/Data/sAPI/disease_severity_signature_weights.json")
 #old_sigs = read_json("~/Data/sAPI/disease_class_signature_weights.json")
-
-
-
 genes_incls= unlist(lapply(old_sigs$weights$Sig.1$attributes$dimnames$variables,function(str)strsplit(str,"_")[[1]][1]))[-1]
 #flags[['transform']] =toJSON(old_sigs$attributes$normalise)
-flags0[['transform']] =.getTransformFuncs(c(seq(-1,-0.2,by=0.2),1/seq(1,10), seq(1,2,by=.5)))
-flags0[['transform']] = '{"x" :"function(x) x", "log":"function(x) log1p(x)"}'
+flags0$genes_incls = toJSON(genes_incls)
+steps=c(seq(-1,2,by=0.4)) #,seq(1,10), seq(1,2,by=.5))
+steps = c(1)
+
+flags0[['transform']] =toJSON(.getTransformFuncs(steps))
+flags0$transform=NULL
+#flags0[['transform']] = '{"x" :"function(x) x", "log":"function(x) log1p(x)"}'
 
 #"ans":"function(x) {x1=(x+3/8); 2*sign(x1)*abs(x1)^(0.5)}",,"bin":"function(x){ x[x>1e6]=1e6; sqrt(1e6)*asin(sqrt(x/1e6))}"}'
-flags0[['genes_incls']]=toJSON(genes_incls) #toJSON(list(first=genes_incls,second="all"))
-
-datasAll=all$get1("Coin","LCAH",flags=flags,reload=T)
+#flags0[['genes_incls']]=toJSON(genes_incls) #toJSON(list(first=genes_incls,second="all"))
+#flags0$genes_incls=NULL
+datasAll=all$get1("Coin","LCAH",flags=flags0,reload=T)
+print(datasAll$pheno())
+print(datasAll$dims())
 #datas2=all$get1("Coin","LCAH","Validation",flags=flags)
 dir="/home/unimelb.edu.au/lcoin/Data/sAPI/Coin/LCAH/LCAH_data"
 dir1="/home/unimelb.edu.au/lcoin/Data/sAPI/Coin/LCAH"
@@ -63,10 +69,17 @@ nme2 = "Validation_meta.csv"
 filenme1 = paste(dir1,nme1,sep="/")
 filenme2 = paste(dir1,nme2,sep="/")
 
-phenos = dist1$getPheno("gn")
-phenos2 = dist2$getPheno("gn")
+phenos = dist1$getPheno("all")
+phenos2 = dist2$getPheno("all")
 phenos$upload_pheno(filenme1,nme1,opts$USER,flags, samples=dist1$sampleID())
 phenos2$upload_pheno(filenme2,nme2,opts$USER,flags, samples=dist2$sampleID())
+
+phenos$getPhenos()
+diffs = list(pheonix4=c("pheonix4_00","pheonix4_24"),pheonix8=c("pheonix8_00","pheonix8_24"))
+
+#diffs = list(gn_od=c("gn_od_00","gn_od_24"))
+phenos$importDiff(user,diffs)
+phenos2$importDiff(user,diffs)
 
 phenos$upload_pheno(filenme1,nme1,opts$USER,flags, samples=samples)
 export = phenos$exportPheno()
@@ -85,7 +98,7 @@ datasAll$dims()
 user=opts$USER
 
 
-phens = datasAll$pheno(sep=F,sep_group=F, exclude="batch")
+phens = datasAll$pheno(sep=F,sep_group=F)
 #phens = phens[[1]]
 #phens2 = phens
 to_rem = unique(c(grep("Probable",(phens2$binomial.multiway$binomial.multiway)),
@@ -93,19 +106,22 @@ grep("Combined",(phens2$binomial.multiway$binomial.multiway)),
 grep("Unknown",(phens2$binomial.multiway$binomial.multiway))))
 phens2$binomial.multiway$binomial.multiway = phens2$binomial.multiway$binomial.multiway[-to_rem]
 
-phens  = phens$all[1:6]
+phens  = phens$all[-7]
+phens$gaussian = phens$gaussian[-7]
 
-phens$all = phens$all[1]
+#phens = phens[3:6]
+#phens$all = phens$all[1]
 #phens = phens[grep("binomial.1", names(phens))]
 #grep(bestpheno,unlist(phens))
-phens$all = phens$all[1]
+#phens$all = phens$all[1]
 #phens = phens[grep("multiway", names(phens))]
 options("fspls.types"=
           fromJSON('{"gaussian": ["correlation","var","mad"],"binomial":"AUC","multinomial":"AUC","ordinal" : "AUC"}'))
 #phens = phens[1:4]
-flags1 = list(var_quantile = 0.00,# genes_incls =genes_incls,
-              project=T, useoffset=T, useglm=T,
-              pthresh = 1e-10,max=20, topn=50,nrep=1,batch=0, beam=1, train=names(datasAll$datas)[1]) ## return can be model, vars or eval
+flags1 = list(quantiles = toJSON(0.5),# genes_incls =genes_incls,
+              project=T, useoffset=T, useglmnet=T,
+              stop_y="rand",
+              pthresh = 0.05,max=50, topn=1,nrep=10,batch=0, beam=1, train=names(datasAll$datas)[1]) ## return can be model, vars or eval
 #flags1[['transform_y']]  = '{"y":"function(y) y","expy" : "function(y) exp(y)"}'
 #flags1[['transform_y_inverse']]  = '{"y":"function(y) y","expy" : "function(y) log(y)"}'
 
@@ -116,13 +132,16 @@ flags1 = list(var_quantile = 0.00,# genes_incls =genes_incls,
 options("fspls.verbose1"=T);options("fspls.check"=T)
 options("fspls.family"=NULL)
  #vars = datasAll$convert(genes_incls,phens)
-transform_y=getYTransform(n_random=1)
+transform_y=getYTransform(n_random=5)
 
 #transform_y = list(x=c("function(y) y", "function(y) y"))
 #phens1=phens$all
 sigDB = datasAll$getSigDB("combined")
 #sigDB$drop_all()
+options("fspls.check"=T)
+#phens$gaussian = phens$gaussian[1]
   vars_all = datasAll$select ( phens, flags1,transform_y, verbose=T,db="combined")
+  warnings()
   #options("fspls.family"=NULL)
   vars_all_full=.extractFullVars(vars_all); print(vars_all_full$variables)
 #  options("glmnet"=T)
@@ -134,24 +153,13 @@ sigDB = datasAll$getSigDB("combined")
 #  eval1 = datasAll$evaluateAllModels(all_models,verbose=F)
   eval3 = datasAll$evaluateAllModels(all_models,verbose=F)
   print(eval3$experiment_id)
-  comb=rbind(eval0,eval1,eval2,eval3)
-  comb$experiment_id = factor(comb$experiment_id)
+  #comb=rbind(eval0,eval1,eval2,eval3)
+  #comb$experiment_id = factor(comb$experiment_id)
   
-  .calcAverageAccuracy<-function(comb){
-      comb1=unite(comb,comb,experiment_id, cv_full, measure,sep="__");
-      comb1_lev = unique(comb1$comb); names(comb1_lev) = comb1_lev
-      medians=.merge1_new(lapply(comb1_lev, function(x){
-        aa= subset(comb1, comb==x)
-        data.frame(list(mid=median(aa$mid,na.rm=T), comb=x))
-      }))
-      medians = medians %>% separate(comb,c("experiment_id","cv_full","measure"), sep="__")
-      medians=medians[order(medians$cv_full),]
-      print(medians)
-      subset(medians, cv_full=="CV=avg")
-  }
+ 
   
-  .calcAverageAccuracy(comb)
-  ggps5=.plotEval1(comb,legend=T, grid0="pheno", grid1="subpheno", point=T,shape_color=c("experiment_id"),
+  #.calcAverageAccuracy(comb)
+  ggps5=.plotEval1(eval3,legend=T, grid0="pheno", grid1="measure", point=T,line=F,shape_color=c("experiment_id", "data", "subpheno"),
                    sep_by=c("cv_full"), showranges=F, scales="free") #, grid="pheno~cv_full",showranges = F)
 ggps5$`CV=avg`
 ggps5$`CV= FALSE FULL= TRUE`
